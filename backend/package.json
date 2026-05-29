@@ -1,0 +1,31 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Backend cho website Thanh Chương Trà",
+  "main": "server.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js"
+  },
+  "keywords": [
+    "thanh-chuong-tra",
+    "sql-server",
+    "express",
+    "backend"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "msnodesqlv8": "^5.0.1",
+    "mssql": "^12.1.0",
+    "nodemailer": "^8.0.9",
+    "pg": "^8.21.0",
+    "qs": "^6.15.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}
