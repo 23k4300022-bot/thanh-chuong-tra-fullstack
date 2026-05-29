@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import logo from "./assets/logo.png";
 
-const API_URL = "http://localhost:5000";
+const API_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function App() {
   const [products, setProducts] = useState([]);
@@ -513,7 +514,7 @@ function App() {
 
     const getProductList = (list = products, limit = 13) => {
       if (!list || list.length === 0) {
-        return "Hiện chưa tải được danh sách sản phẩm từ SQL. Bạn kiểm tra lại backend http://localhost:5000/api/products hoặc bảng products.";
+        return "Hiện chưa tải được danh sách sản phẩm. Bạn kiểm tra lại backend hoặc bảng products.";
       }
 
       return list.slice(0, limit).map(formatProductLine).join("\n");
@@ -721,7 +722,7 @@ Bạn có thể bấm "Xem chi tiết" hoặc "Thêm vào giỏ hàng" ở sản
     }
 
     if (hasAny(["dat hang", "mua", "gio hang", "them vao gio", "order"])) {
-      return `Cách đặt hàng:\n\n1. Vào mục Sản phẩm.\n2. Bấm "Thêm vào giỏ hàng".\n3. Bấm nút "Giỏ hàng".\n4. Nhập họ tên, số điện thoại, địa chỉ nhận hàng.\n5. Chọn phương thức thanh toán.\n6. Bấm đặt hàng hoặc thanh toán.\n\nSau khi đặt thành công, đơn hàng sẽ được lưu vào SQL Server.`;
+      return `Cách đặt hàng:\n\n1. Vào mục Sản phẩm.\n2. Bấm "Thêm vào giỏ hàng".\n3. Bấm nút "Giỏ hàng".\n4. Nhập họ tên, số điện thoại, địa chỉ nhận hàng.\n5. Chọn phương thức thanh toán.\n6. Bấm đặt hàng hoặc thanh toán.\n\nSau khi đặt thành công, đơn hàng sẽ được lưu vào hệ thống.`;
     }
 
     if (hasAny(["thanh toan", "cod", "ngan hang", "chuyen khoan", "vnpay"])) {
@@ -1010,7 +1011,6 @@ Lưu ý: Trà thảo mộc như trà gừng, trà atiso có thể hãm lâu hơn
           <div className="section-heading">
             <p className="eyebrow green">Sản phẩm</p>
             <h2>Sản phẩm nổi bật</h2>
-            <p>Dữ liệu sản phẩm được lấy trực tiếp từ SQL Server.</p>
           </div>
 
           <div className="product-grid">
