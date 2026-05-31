@@ -6,6 +6,8 @@ const nodemailer = require("nodemailer");
 const { poolPromise } = require("./db");
 require("dotenv").config();
 
+const ENABLE_EMAIL = process.env.ENABLE_EMAIL === "true";
+
 const app = express();
 
 app.use(cors());
@@ -32,6 +34,11 @@ function formatDateTime(date = new Date()) {
 }
 
 async function sendOrderSuccessEmail(orderInfo) {
+  if (!ENABLE_EMAIL) {
+    console.log("Đã bỏ qua gửi email xác nhận vì ENABLE_EMAIL=false");
+    return;
+  }
+
   const {
     order_id,
     customer_name,
@@ -165,17 +172,39 @@ async function sendOrderSuccessEmail(orderInfo) {
 
 /* ===================== VNPAY FUNCTIONS ===================== */
 
-function formatDate(date) {
-  const pad = (n) => String(n).padStart(2, "0");
+function formatDate(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const get = (type) =>
+    parts.find((part) => part.type === type)?.value || "";
 
   return (
-    date.getFullYear().toString() +
-    pad(date.getMonth() + 1) +
-    pad(date.getDate()) +
-    pad(date.getHours()) +
-    pad(date.getMinutes()) +
-    pad(date.getSeconds())
+    get("year") +
+    get("month") +
+    get("day") +
+    get("hour") +
+    get("minute") +
+    get("second")
   );
+}
+
+function getClientIp(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+
+  if (typeof forwarded === "string" && forwarded.trim()) {
+    return forwarded.split(",")[0].trim();
+  }
+
+  return req.socket?.remoteAddress?.replace("::ffff:", "") || "127.0.0.1";
 }
 
 function sortObject(obj) {
@@ -377,22 +406,20 @@ app.post("/api/orders", async (req, res) => {
       [orderId]
     );
 
-    try {
-      await sendOrderSuccessEmail({
-        order_id: orderId,
-        customer_name,
-        customer_email,
-        phone,
-        address,
-        note,
-        total_amount: totalAmount,
-        payment_method: payment_method || "COD",
-        payment_status: paymentStatus,
-        items: emailItemsResult.rows,
-      });
-    } catch (mailError) {
+    sendOrderSuccessEmail({
+      order_id: orderId,
+      customer_name,
+      customer_email,
+      phone,
+      address,
+      note,
+      total_amount: totalAmount,
+      payment_method: payment_method || "COD",
+      payment_status: paymentStatus,
+      items: emailItemsResult.rows,
+    }).catch((mailError) => {
       console.error("Lỗi gửi email xác nhận:", mailError.message);
-    }
+    });
 
     res.json({
       message: "Đặt hàng thành công",
@@ -503,7 +530,7 @@ app.post("/api/create-vnpay-payment", async (req, res) => {
       vnp_OrderType: "other",
       vnp_Locale: "vn",
       vnp_ReturnUrl: process.env.VNP_RETURN_URL,
-      vnp_IpAddr: "127.0.0.1",
+      vnp_IpAddr: getClientIp(req),
       vnp_CreateDate: createDate,
       vnp_ExpireDate: expireDate,
     };
@@ -609,22 +636,20 @@ app.get("/api/vnpay-return", async (req, res) => {
       if (orderInfo.rows.length > 0) {
         const order = orderInfo.rows[0];
 
-        try {
-          await sendOrderSuccessEmail({
-            order_id: order.id,
-            customer_name: order.customer_name,
-            customer_email: order.customer_email,
-            phone: order.phone,
-            address: order.address,
-            note: order.note,
-            total_amount: order.total_amount,
-            payment_method: order.payment_method,
-            payment_status: "Đã thanh toán VNPay Sandbox",
-            items: itemsInfo.rows,
-          });
-        } catch (mailError) {
+        sendOrderSuccessEmail({
+          order_id: order.id,
+          customer_name: order.customer_name,
+          customer_email: order.customer_email,
+          phone: order.phone,
+          address: order.address,
+          note: order.note,
+          total_amount: order.total_amount,
+          payment_method: order.payment_method,
+          payment_status: "Đã thanh toán VNPay Sandbox",
+          items: itemsInfo.rows,
+        }).catch((mailError) => {
           console.error("Lỗi gửi email sau thanh toán VNPay:", mailError.message);
-        }
+        });
       }
 
       return res.redirect(
