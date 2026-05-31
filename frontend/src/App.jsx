@@ -1607,4 +1607,12 @@ Lưu ý: Trà thảo mộc như trà gừng, trà atiso có thể hãm lâu hơn
   );
 }
 
+function App() {
+  if (window.location.pathname === "/admin") {
+    return <AdminPage />;
+  }
+
+  return <Storefront />;
+}
+
 export default App;
