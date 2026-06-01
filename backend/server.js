@@ -2,7 +2,6 @@ const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
 const qs = require("qs");
-const nodemailer = require("nodemailer");
 const { poolPromise } = require("./db");
 require("dotenv").config();
 
@@ -15,13 +14,11 @@ app.use(express.json());
 
 /* ===================== EMAIL CONFIG ===================== */
 
-const mailTransporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
-  },
-});
+// Render Free chặn các cổng SMTP phổ biến. Gửi email qua Resend HTTP API.
+const RESEND_API_URL = "https://api.resend.com/emails";
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+const EMAIL_FROM =
+  process.env.EMAIL_FROM || "Thanh Chương Trà <onboarding@resend.dev>";
 
 function formatMoney(amount) {
   return Number(amount || 0).toLocaleString("vi-VN") + "đ";
@@ -154,20 +151,50 @@ async function sendOrderSuccessEmail(orderInfo) {
             Trân trọng,<br />
             <strong>Thanh Chương Trà</strong><br />
             Hotline: 0900 000 000<br />
-            Email: ${process.env.SHOP_EMAIL || process.env.MAIL_USER}
+            Email: ${process.env.SHOP_EMAIL || "thanhchuongtra@gmail.com"}
           </p>
         </div>
       </div>
     </div>
   `;
 
-  await mailTransporter.sendMail({
-    from: `"Thanh Chương Trà" <${process.env.MAIL_USER}>`,
-    to: customer_email,
-    cc: process.env.SHOP_EMAIL || "",
+  if (!RESEND_API_KEY) {
+    throw new Error(
+      "Thiếu RESEND_API_KEY. Hãy thêm biến RESEND_API_KEY trong Render Environment."
+    );
+  }
+
+  const payload = {
+    from: EMAIL_FROM,
+    to: [customer_email],
     subject: `Xác nhận đơn hàng #${order_id} - Thanh Chương Trà`,
     html,
+  };
+
+  if (process.env.SHOP_EMAIL) {
+    payload.cc = [process.env.SHOP_EMAIL];
+  }
+
+  const response = await fetch(RESEND_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
   });
+
+  const responseText = await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      `Resend API lỗi ${response.status}: ${responseText.slice(0, 300)}`
+    );
+  }
+
+  console.log(
+    `Đã gửi email xác nhận đơn hàng #${order_id} tới ${customer_email}`
+  );
 }
 
 /* ===================== VNPAY FUNCTIONS ===================== */
