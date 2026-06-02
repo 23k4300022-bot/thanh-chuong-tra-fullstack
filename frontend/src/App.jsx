@@ -333,7 +333,6 @@ function Storefront() {
         return;
       }
 
-      // Chuyển thẳng sang cổng thanh toán VNPay Sandbox
       window.location.href = data.url;
     } catch (error) {
       alert("Lỗi khi chuyển sang VNPay");
@@ -494,7 +493,11 @@ function Storefront() {
 
     if (!userMessage || chatbotLoading) return;
 
-    const previousMessages = chatMessages.slice(-8);
+    // FIX: Chỉ gửi history là các tin nhắn thực (bỏ tin chào đầu tiên từ bot),
+    // và đảm bảo history bắt đầu bằng tin nhắn của user
+    const previousMessages = chatMessages
+      .slice(1)   // bỏ tin chào mặc định của bot ở đầu
+      .slice(-8); // lấy tối đa 8 tin gần nhất
 
     setChatMessages((prev) => [
       ...prev,
@@ -932,7 +935,7 @@ Lưu ý: Trà thảo mộc như trà gừng, trà atiso có thể hãm lâu hơn
         <p>Hương xanh xứ Nghệ trong từng chén trà.</p>
       </footer>
 
-      {/* ===== MODAL CHI TIẾT THƯƠNG HIỆU (MỚI) ===== */}
+      {/* ===== MODAL CHI TIẾT THƯƠNG HIỆU ===== */}
       {showAboutModal && aboutModalData[showAboutModal] && (
         <div className="modal">
           <div className="detail-modal">

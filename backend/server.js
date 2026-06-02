@@ -14,9 +14,9 @@ app.use(express.json());
 
 /* ===================== GEMINI AI CHATBOT CONFIG ===================== */
 
-// API key chỉ lưu trong Render Environment, không đưa vào frontend.
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
+// FIX: Sửa tên model đúng
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
 const GEMINI_API_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
@@ -40,10 +40,11 @@ function canAskChatbot(ip) {
   return true;
 }
 
+// FIX: Đảm bảo history bắt đầu bằng "user" (Gemini yêu cầu)
 function cleanChatHistory(history) {
   if (!Array.isArray(history)) return [];
 
-  return history
+  const filtered = history
     .slice(-8)
     .map((message) => ({
       role: message?.from === "bot" ? "model" : "user",
@@ -54,6 +55,11 @@ function cleanChatHistory(history) {
       ],
     }))
     .filter((message) => message.parts[0].text.trim());
+
+  // Gemini yêu cầu cuộc hội thoại phải bắt đầu bằng role "user"
+  const firstUserIdx = filtered.findIndex((m) => m.role === "user");
+  if (firstUserIdx < 0) return [];
+  return firstUserIdx > 0 ? filtered.slice(firstUserIdx) : filtered;
 }
 
 function buildProductContext(products) {
@@ -155,7 +161,6 @@ ${productContext}
 
 /* ===================== EMAIL CONFIG ===================== */
 
-// Render Free chặn SMTP. Gửi email qua Brevo Transactional Email API bằng HTTPS.
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 const BREVO_API_KEY = process.env.BREVO_API_KEY || "";
 const EMAIL_FROM_ADDRESS = process.env.EMAIL_FROM_ADDRESS || "";
@@ -874,7 +879,6 @@ app.get("/api/vnpay-return", async (req, res) => {
 });
 
 /* ===================== CHATBOT ===================== */
-
 
 app.post("/api/chatbot/ask", async (req, res) => {
   try {
