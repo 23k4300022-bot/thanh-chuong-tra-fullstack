@@ -14,11 +14,11 @@ app.use(express.json());
 
 /* ===================== EMAIL CONFIG ===================== */
 
-// Render Free chặn các cổng SMTP phổ biến. Gửi email qua Resend HTTP API.
-const RESEND_API_URL = "https://api.resend.com/emails";
-const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
-const EMAIL_FROM =
-  process.env.EMAIL_FROM || "Thanh Chương Trà <onboarding@resend.dev>";
+// Render Free chặn SMTP. Gửi email qua Brevo Transactional Email API bằng HTTPS.
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+const BREVO_API_KEY = process.env.BREVO_API_KEY || "";
+const EMAIL_FROM_ADDRESS = process.env.EMAIL_FROM_ADDRESS || "";
+const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || "Thanh Chương Trà";
 
 function formatMoney(amount) {
   return Number(amount || 0).toLocaleString("vi-VN") + "đ";
@@ -151,35 +151,55 @@ async function sendOrderSuccessEmail(orderInfo) {
             Trân trọng,<br />
             <strong>Thanh Chương Trà</strong><br />
             Hotline: 0900 000 000<br />
-            Email: ${process.env.SHOP_EMAIL || "thanhchuongtra@gmail.com"}
+            Email: ${process.env.SHOP_EMAIL || EMAIL_FROM_ADDRESS || "thanhchuongtra@gmail.com"}
           </p>
         </div>
       </div>
     </div>
   `;
 
-  if (!RESEND_API_KEY) {
+  if (!BREVO_API_KEY) {
     throw new Error(
-      "Thiếu RESEND_API_KEY. Hãy thêm biến RESEND_API_KEY trong Render Environment."
+      "Thiếu BREVO_API_KEY. Hãy thêm biến BREVO_API_KEY trong Render Environment."
+    );
+  }
+
+  if (!EMAIL_FROM_ADDRESS) {
+    throw new Error(
+      "Thiếu EMAIL_FROM_ADDRESS. Hãy thêm email sender đã xác minh trong Brevo."
     );
   }
 
   const payload = {
-    from: EMAIL_FROM,
-    to: [customer_email],
+    sender: {
+      name: EMAIL_FROM_NAME,
+      email: EMAIL_FROM_ADDRESS,
+    },
+    to: [
+      {
+        email: customer_email,
+        name: customer_name || customer_email,
+      },
+    ],
     subject: `Xác nhận đơn hàng #${order_id} - Thanh Chương Trà`,
-    html,
+    htmlContent: html,
   };
 
   if (process.env.SHOP_EMAIL) {
-    payload.cc = [process.env.SHOP_EMAIL];
+    payload.cc = [
+      {
+        email: process.env.SHOP_EMAIL,
+        name: EMAIL_FROM_NAME,
+      },
+    ];
   }
 
-  const response = await fetch(RESEND_API_URL, {
+  const response = await fetch(BREVO_API_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "api-key": BREVO_API_KEY,
       "Content-Type": "application/json",
+      Accept: "application/json",
     },
     body: JSON.stringify(payload),
   });
@@ -188,12 +208,12 @@ async function sendOrderSuccessEmail(orderInfo) {
 
   if (!response.ok) {
     throw new Error(
-      `Resend API lỗi ${response.status}: ${responseText.slice(0, 300)}`
+      `Brevo API lỗi ${response.status}: ${responseText.slice(0, 300)}`
     );
   }
 
   console.log(
-    `Đã gửi email xác nhận đơn hàng #${order_id} tới ${customer_email}`
+    `Đã gửi email xác nhận đơn hàng #${order_id} tới ${customer_email} qua Brevo`
   );
 }
 
