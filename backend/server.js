@@ -106,10 +106,11 @@ DỮ LIỆU SẢN PHẨM HIỆN CÓ:
 ${productContext}
   `.trim();
 
-  const response = await fetch(`${GEMINI_API_URL}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
+  const response = await fetch(GEMINI_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "x-goog-api-key": GEMINI_API_KEY,
     },
     body: JSON.stringify({
       systemInstruction: {
