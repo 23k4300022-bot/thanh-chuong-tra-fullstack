@@ -21,6 +21,7 @@ function Storefront() {
 
   const [showChatbot, setShowChatbot] = useState(false);
   const [chatInput, setChatInput] = useState("");
+  const [chatbotLoading, setChatbotLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState([
     {
       from: "bot",
@@ -488,285 +489,12 @@ function Storefront() {
     }
   };
 
-  const getBotReply = (message) => {
-    const text = message.toLowerCase().trim();
-
-    const removeVietnameseTones = (str) => {
-      return str
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/g, "d")
-        .replace(/Đ/g, "D")
-        .toLowerCase();
-    };
-
-    const cleanText = removeVietnameseTones(text);
-
-    const hasAny = (keywords) => {
-      return keywords.some((keyword) =>
-        cleanText.includes(removeVietnameseTones(keyword))
-      );
-    };
-
-    const formatProductLine = (item, index) => {
-      return `${index + 1}. ${item.name} - ${formatPrice(item.price)} - ${
-        item.weight || "chưa có khối lượng"
-      }`;
-    };
-
-    const getProductList = (list = products, limit = 13) => {
-      if (!list || list.length === 0) {
-        return "Hiện chưa tải được danh sách sản phẩm. Bạn kiểm tra lại backend hoặc bảng products.";
-      }
-
-      return list.slice(0, limit).map(formatProductLine).join("\n");
-    };
-
-    const findProductsByKeywords = (keywords) => {
-      return products.filter((item) => {
-        const name = removeVietnameseTones(item.name || "");
-        const category = removeVietnameseTones(item.category || "");
-        const teaType = removeVietnameseTones(item.tea_type || "");
-        const flavor = removeVietnameseTones(item.flavor || "");
-        const description = removeVietnameseTones(item.description || "");
-
-        return keywords.some((keyword) => {
-          const key = removeVietnameseTones(keyword);
-          return (
-            name.includes(key) ||
-            category.includes(key) ||
-            teaType.includes(key) ||
-            flavor.includes(key) ||
-            description.includes(key)
-          );
-        });
-      });
-    };
-
-    const findExactProduct = () => {
-      if (!products || products.length === 0) return null;
-
-      const sortedProducts = [...products].sort(
-        (a, b) => String(b.name || "").length - String(a.name || "").length
-      );
-
-      return sortedProducts.find((item) => {
-        const name = removeVietnameseTones(item.name || "");
-        const slug = removeVietnameseTones(item.slug || "");
-        return cleanText.includes(name) || cleanText.includes(slug);
-      });
-    };
-
-    const productDetailText = (product) => {
-      return `Thông tin sản phẩm: ${product.name}
-
-Giá: ${formatPrice(product.price)}
-Khối lượng: ${product.weight || "Chưa cập nhật"}
-Danh mục: ${product.category || "Chưa cập nhật"}
-Xuất xứ: ${product.origin || "Thanh Chương, Nghệ An"}
-Loại trà: ${product.tea_type || "Chưa cập nhật"}
-Hương vị: ${product.flavor || "Chưa cập nhật"}
-Màu nước: ${product.water_color || "Chưa cập nhật"}
-
-Cách pha:
-${product.brewing_guide || "Dùng 5–8g trà, pha với nước 80–90°C, hãm 20–30 giây."}
-
-Bảo quản:
-${product.storage_guide || "Bảo quản nơi khô ráo, tránh ánh nắng và mùi lạ."}
-
-Bạn có thể bấm "Xem chi tiết" hoặc "Thêm vào giỏ hàng" ở sản phẩm này trên website.`;
-    };
-
-    const matchedProduct = findExactProduct();
-
-    if (matchedProduct) {
-      return productDetailText(matchedProduct);
-    }
-
-    if (
-      hasAny([
-        "tat ca san pham",
-        "toan bo san pham",
-        "danh sach san pham",
-        "san pham",
-        "menu",
-        "co nhung tra gi",
-        "co tra gi",
-        "tra gi",
-        "loai tra",
-        "mat hang",
-      ])
-    ) {
-      return `Hiện website đang có ${products.length} sản phẩm trà:\n\n${getProductList(products, 20)}\n\nBạn có thể hỏi cụ thể như: "giá trà sen", "trà móc câu", "hộp quà", "trà nào uống hằng ngày", "trà nào để biếu".`;
-    }
-
-    if (
-      hasAny([
-        "gia",
-        "bao nhieu",
-        "bao tien",
-        "tien",
-        "bang gia",
-        "gia san pham",
-      ])
-    ) {
-      const matchedByPrice = findProductsByKeywords([
-        "trà xanh",
-        "trà móc câu",
-        "trà nõn",
-        "trà túi lọc",
-        "hộp quà",
-        "trà sen",
-        "trà lài",
-        "trà gừng",
-        "trà atiso",
-      ]).filter((item) => {
-        const itemText = removeVietnameseTones(
-          `${item.name} ${item.category} ${item.tea_type}`
-        );
-
-        return itemText
-          .split(" ")
-          .some((word) => cleanText.includes(word) && word.length >= 3);
-      });
-
-      const list = matchedByPrice.length > 0 ? matchedByPrice : products;
-
-      return `Bảng giá sản phẩm hiện có:\n\n${getProductList(list, 20)}\n\nBạn muốn xem chi tiết loại trà nào thì nhắn đúng tên sản phẩm, ví dụ: "Trà Sen Thanh Chương" hoặc "Hộp Quà Trà Xứ Nghệ Cao Cấp".`;
-    }
-
-    if (hasAny(["tra xanh", "xanh thanh chuong", "tra truyen thong"])) {
-      const list = findProductsByKeywords(["trà xanh"]);
-      return `Các sản phẩm trà xanh Thanh Chương hiện có:\n\n${getProductList(list, 10)}\n\nTrà xanh phù hợp uống hằng ngày, tiếp khách, vị chát dịu và hậu ngọt thanh.`;
-    }
-
-    if (hasAny(["moc cau", "tra moc cau"])) {
-      const list = findProductsByKeywords(["móc câu"]);
-      return `Các sản phẩm trà móc câu hiện có:\n\n${getProductList(list, 10)}\n\nTrà móc câu có cánh trà xoăn nhỏ, hương thơm dịu, nước xanh vàng và vị đượm vừa.`;
-    }
-
-    if (hasAny(["tra non", "non thanh chuong", "tra cao cap", "cao cap"])) {
-      const list = findProductsByKeywords(["trà nõn", "cao cấp"]);
-      return `Các sản phẩm cao cấp bạn có thể xem:\n\n${getProductList(list, 10)}\n\nTrà nõn thường hợp với khách thích vị thanh, hậu ngọt sâu và chất trà tinh tế hơn.`;
-    }
-
-    if (hasAny(["tui loc", "tra tui loc", "van phong", "nguoi ban ron"])) {
-      const list = findProductsByKeywords(["túi lọc"]);
-      return `Dòng trà tiện lợi hiện có:\n\n${getProductList(list, 10)}\n\nTrà túi lọc phù hợp cho văn phòng, người bận rộn hoặc người muốn pha nhanh.`;
-    }
-
-    if (hasAny(["hop qua", "qua", "bieu", "tang", "qua tet", "doi tac", "thay co"])) {
-      const list = findProductsByKeywords(["hộp quà", "quà"]);
-      return `Các sản phẩm hộp quà hiện có:\n\n${getProductList(list, 10)}\n\nHộp quà phù hợp biếu Tết, thầy cô, người thân, khách hàng hoặc đối tác.`;
-    }
-
-    if (hasAny(["tra sen", "sen"])) {
-      const list = findProductsByKeywords(["trà sen", "sen"]);
-      return `Các sản phẩm trà sen hiện có:\n\n${getProductList(list, 10)}\n\nTrà sen có hương sen dịu nhẹ, vị trà thanh, phù hợp uống thư giãn hoặc tiếp khách.`;
-    }
-
-    if (hasAny(["tra lai", "lai", "hoa lai"])) {
-      const list = findProductsByKeywords(["trà lài", "lài"]);
-      return `Sản phẩm trà lài hiện có:\n\n${getProductList(list, 10)}\n\nTrà lài có hương hoa lài nhẹ nhàng, dễ uống và thích hợp dùng hằng ngày.`;
-    }
-
-    if (hasAny(["tra gung", "gung", "ngay lanh", "am bung"])) {
-      const list = findProductsByKeywords(["trà gừng", "gừng"]);
-      return `Sản phẩm trà gừng hiện có:\n\n${getProductList(list, 10)}\n\nTrà gừng phù hợp dùng vào sáng sớm, ngày lạnh hoặc khi muốn một loại trà có vị ấm nhẹ.`;
-    }
-
-    if (hasAny(["atiso", "tra atiso", "thao moc", "thanh mat"])) {
-      const list = findProductsByKeywords(["atiso", "thảo mộc"]);
-      return `Các sản phẩm trà thảo mộc hiện có:\n\n${getProductList(list, 10)}\n\nTrà atiso có vị thanh mát, dịu nhẹ, phù hợp với người thích dòng trà thảo mộc dễ uống.`;
-    }
-
-    if (
-      hasAny([
-        "uong hang ngay",
-        "uong moi ngay",
-        "dung hang ngay",
-        "de uong",
-        "tra nao de uong",
-      ])
-    ) {
-      const list = findProductsByKeywords(["trà xanh", "trà lài", "túi lọc"]);
-      return `Nếu uống hằng ngày, mình gợi ý:\n\n${getProductList(list, 10)}\n\nGợi ý chọn: Trà Xanh Thanh Chương Đặc Sản, Trà Lài Thanh Chương hoặc Trà Xanh Túi Lọc nếu bạn muốn pha nhanh.`;
-    }
-
-    if (
-      hasAny([
-        "bieu tang",
-        "lam qua",
-        "tang sep",
-        "tang thay co",
-        "tang doi tac",
-        "qua cao cap",
-      ])
-    ) {
-      const list = findProductsByKeywords(["hộp quà"]);
-      return `Nếu mua để biếu tặng, bạn nên chọn hộp quà:\n\n${getProductList(list, 10)}\n\nGợi ý: Hộp Quà Trà Xứ Nghệ Cao Cấp phù hợp đối tác, khách hàng; Hộp Quà Trà Thanh Chương An Lộc phù hợp người thân, thầy cô.`;
-    }
-
-    if (
-      hasAny([
-        "cach pha",
-        "pha tra",
-        "nuoc bao nhieu do",
-        "ham bao lau",
-        "pha nhu nao",
-      ])
-    ) {
-      return `Cách pha trà ngon:\n\n1. Dùng khoảng 5–8g trà cho ấm 150–200ml.\n2. Tráng trà nhanh bằng nước nóng rồi đổ bỏ nước đầu.\n3. Pha bằng nước khoảng 80–90°C.\n4. Hãm trà 20–30 giây.\n5. Rót hết nước trà ra chén, không ngâm quá lâu để tránh bị chát.\n\nNếu là trà thảo mộc như trà gừng hoặc atiso, có thể hãm lâu hơn khoảng 3–7 phút.`;
-    }
-
-    if (hasAny(["bao quan", "cat tra", "giu tra", "de tra"])) {
-      return `Cách bảo quản trà:\n\n1. Đóng kín túi hoặc hộp sau khi mở.\n2. Để nơi khô ráo, thoáng mát.\n3. Tránh ánh nắng trực tiếp.\n4. Tránh để gần thực phẩm có mùi mạnh.\n5. Nên dùng hộp kín hoặc túi zip để giữ hương trà lâu hơn.`;
-    }
-
-    if (hasAny(["dat hang", "mua", "gio hang", "them vao gio", "order"])) {
-      return `Cách đặt hàng:\n\n1. Vào mục Sản phẩm.\n2. Bấm "Thêm vào giỏ hàng".\n3. Bấm nút "Giỏ hàng".\n4. Nhập họ tên, số điện thoại, địa chỉ nhận hàng.\n5. Chọn phương thức thanh toán.\n6. Bấm đặt hàng hoặc thanh toán.\n\nSau khi đặt thành công, đơn hàng sẽ được lưu vào hệ thống.`;
-    }
-
-    if (hasAny(["thanh toan", "cod", "ngan hang", "chuyen khoan", "vnpay"])) {
-      return `Website hỗ trợ thanh toán:\n\n1. COD - Thanh toán khi nhận hàng.\n2. Thanh toán qua ngân hàng test.\n3. VNPay Sandbox.\n\nBạn chọn phương thức trong phần Giỏ hàng & thanh toán.`;
-    }
-
-    if (hasAny(["ncb", "so the", "otp", "ngay phat hanh", "sandbox"])) {
-      return `Thông tin test VNPay Sandbox:\n\nNgân hàng: NCB\nSố thẻ: 9704198526191432198\nTên chủ thẻ: NGUYEN VAN A\nNgày phát hành: 07/15\nOTP: 123456`;
-    }
-
-    if (hasAny(["lien he", "hotline", "so dien thoai", "email", "dia chi"])) {
-      return `Thông tin liên hệ:\n\nHotline: 0900 000 000\nEmail: thanhchuongtra@gmail.com\nĐịa chỉ: Thanh Chương, Nghệ An\n\nBạn cũng có thể gửi form ở mục Liên hệ trên website.`;
-    }
-
-    if (hasAny(["nguon goc", "xuat xu", "o dau", "thanh chuong", "nghe an"])) {
-      return `Sản phẩm được xây dựng theo thương hiệu trà Thanh Chương, Nghệ An.\n\nĐặc trưng là hương trà mộc, vị chát dịu, hậu ngọt thanh, phù hợp uống hằng ngày, tiếp khách hoặc làm quà biếu.`;
-    }
-
-    if (hasAny(["ship", "giao hang", "van chuyen", "bao lau", "phi ship"])) {
-      return `Bạn nhập địa chỉ nhận hàng trong phần Giỏ hàng. Shop sẽ dựa theo địa chỉ để xác nhận thời gian giao và phí vận chuyển nếu có.\n\nBạn nên nhập rõ xã/phường, huyện/quận, tỉnh/thành và số điện thoại.`;
-    }
-
-    if (hasAny(["doi tra", "hoan tien", "loi san pham", "hong", "sai hang"])) {
-      return `Nếu sản phẩm bị lỗi, hỏng bao bì hoặc giao sai sản phẩm, bạn nên liên hệ shop qua hotline hoặc form Liên hệ.\n\nKhi liên hệ, hãy cung cấp mã đơn hàng, số điện thoại đặt hàng và hình ảnh sản phẩm để được hỗ trợ nhanh hơn.`;
-    }
-
-    if (hasAny(["xin chao", "chao", "hello", "hi", "alo"])) {
-      return "Xin chào! Mình là trợ lý Thanh Chương Trà. Bạn muốn hỏi về sản phẩm, giá, hộp quà, cách pha trà, đặt hàng hay thanh toán?";
-    }
-
-    if (hasAny(["cam on", "thanks", "thank you"])) {
-      return "Rất vui được hỗ trợ bạn. Bạn cần xem thêm sản phẩm, giá, cách đặt hàng hay thanh toán thì cứ nhắn tiếp nhé.";
-    }
-
-    return `Mình chưa hiểu rõ câu hỏi của bạn.\n\nBạn có thể hỏi:\n- Sản phẩm hiện có những loại nào?\n- Giá trà bao nhiêu?\n- Trà sen Thanh Chương giá bao nhiêu?\n- Có hộp quà không?\n- Trà nào phù hợp để biếu?\n- Trà nào uống hằng ngày?\n- Cách pha trà như thế nào?\n- Đặt hàng ra sao?\n- Thanh toán VNPay thế nào?`;
-  };
-
   const sendChatMessage = async () => {
-    if (!chatInput.trim()) return;
-
     const userMessage = chatInput.trim();
-    const botReply = getBotReply(userMessage);
+
+    if (!userMessage || chatbotLoading) return;
+
+    const previousMessages = chatMessages.slice(-8);
 
     setChatMessages((prev) => [
       ...prev,
@@ -774,16 +502,13 @@ Bạn có thể bấm "Xem chi tiết" hoặc "Thêm vào giỏ hàng" ở sản
         from: "user",
         text: userMessage,
       },
-      {
-        from: "bot",
-        text: botReply,
-      },
     ]);
 
     setChatInput("");
+    setChatbotLoading(true);
 
     try {
-      await fetch(`${API_URL}/api/chatbot/messages`, {
+      const res = await fetch(`${API_URL}/api/chatbot/ask`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -792,11 +517,37 @@ Bạn có thể bấm "Xem chi tiết" hoặc "Thêm vào giỏ hàng" ở sản
           customer_name: currentUser?.name || "",
           customer_email: currentUser?.email || "",
           user_message: userMessage,
-          bot_reply: botReply,
+          history: previousMessages,
         }),
       });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Không nhận được phản hồi từ trợ lý AI");
+      }
+
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          from: "bot",
+          text: data.reply,
+        },
+      ]);
     } catch (error) {
-      console.error("Lỗi lưu câu hỏi chatbot:", error);
+      console.error("Lỗi chatbot AI:", error);
+
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          from: "bot",
+          text:
+            "Xin lỗi, trợ lý AI đang tạm thời chưa phản hồi được. " +
+            "Bạn vui lòng thử lại sau ít phút hoặc liên hệ shop qua mục Liên hệ.",
+        },
+      ]);
+    } finally {
+      setChatbotLoading(false);
     }
   };
 
@@ -1552,7 +1303,7 @@ Lưu ý: Trà thảo mộc như trà gừng, trà atiso có thể hãm lâu hơn
             <div className="chatbot-header">
               <div>
                 <strong>Trợ lý Thanh Chương Trà</strong>
-                <span>Hỗ trợ tư vấn sản phẩm</span>
+                <span>Trợ lý AI tư vấn linh hoạt</span>
               </div>
 
               <button type="button" onClick={() => setShowChatbot(false)}>
@@ -1578,8 +1329,11 @@ Lưu ý: Trà thảo mộc như trà gừng, trà atiso có thể hãm lâu hơn
             <div className="chatbot-input">
               <input
                 type="text"
-                placeholder="Nhập câu hỏi..."
+                placeholder={
+                  chatbotLoading ? "Trợ lý AI đang trả lời..." : "Nhập câu hỏi..."
+                }
                 value={chatInput}
+                disabled={chatbotLoading}
                 onChange={(e) => setChatInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -1588,8 +1342,12 @@ Lưu ý: Trà thảo mộc như trà gừng, trà atiso có thể hãm lâu hơn
                 }}
               />
 
-              <button type="button" onClick={sendChatMessage}>
-                Gửi
+              <button
+                type="button"
+                onClick={sendChatMessage}
+                disabled={chatbotLoading}
+              >
+                {chatbotLoading ? "Đang trả lời..." : "Gửi"}
               </button>
             </div>
           </div>
