@@ -614,12 +614,17 @@ function Storefront() {
               Hương xanh xứ Nghệ trong từng chén trà. Tinh chọn từ vùng chè Thanh Chương, Nghệ An.
             </p>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              {["Facebook", "Zalo", "TikTok"].map(sn => (
-                <span key={sn} style={{
+              {[
+                { label: "Facebook", url: "https://www.facebook.com/share/18adUuHPZp/?mibextid=wwXIfr" },
+                { label: "Zalo", url: "https://zalo.me/0985605049" },
+                { label: "TikTok", url: "https://www.tiktok.com/@hthtyuyu" },
+              ].map(sn => (
+                <a key={sn.label} href={sn.url} target="_blank" rel="noopener noreferrer" style={{
                   background: "rgba(255,255,255,0.1)", borderRadius: 8,
                   padding: "6px 12px", fontSize: 12, cursor: "pointer",
-                  transition: "background 0.2s"
-                }}>{sn}</span>
+                  transition: "background 0.2s", color: "#c8e6c9",
+                  textDecoration: "none"
+                }}>{sn.label}</a>
               ))}
             </div>
           </div>
