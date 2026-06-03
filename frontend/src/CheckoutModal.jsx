@@ -495,8 +495,13 @@ export default function CheckoutModal({
                       <div key={opt.id}
                         className={`co-pay-opt${payMethod===opt.id?" active":""}`}
                         onClick={()=>setCustomer(prev=>({
-                          ...prev, payment_method:opt.id,
-                          bank_name:"",bank_account:"",account_holder:"",otp:"",
+                          ...prev,
+                          payment_method: opt.id,
+                          // Tự động điền thông tin BIDV khi chọn chuyển khoản
+                          bank_name:       opt.id==="Chuyển khoản test" ? "BIDV" : "",
+                          bank_account:    opt.id==="Chuyển khoản test" ? "5180971464" : "",
+                          account_holder:  opt.id==="Chuyển khoản test" ? "NGUYEN HONG TRUONG" : "",
+                          otp:             opt.id==="Chuyển khoản test" ? "123456" : "",
                           vnp_bank_code:"",vnp_card_number:"",vnp_card_holder:"",vnp_issue_date:"",vnp_otp:"",
                         }))}>
                         <span className="co-pay-icon">{opt.icon}</span>{opt.label}

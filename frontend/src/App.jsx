@@ -265,14 +265,7 @@ function Storefront() {
       alert("Vui lòng nhập đầy đủ thông tin"); return;
     }
     if (customer.payment_method === "VNPay Sandbox") { await payWithVnpay(); return; }
-    if (customer.payment_method === "Chuyển khoản test") {
-      if (!customer.bank_name || !customer.bank_account || !customer.account_holder || !customer.otp) {
-        alert("Vui lòng nhập đầy đủ thông tin thanh toán ngân hàng"); return;
-      }
-      if (customer.bank_account.trim() !== "9704360000000000") { alert("Số tài khoản test không đúng"); return; }
-      if (customer.account_holder.trim().toUpperCase() !== "NGUYEN VAN A") { alert("Tên chủ tài khoản test không đúng"); return; }
-      if (customer.otp.trim() !== "123456") { alert("OTP test không đúng"); return; }
-    }
+    // Chuyển khoản BIDV: thông tin tự động điền, không cần kiểm tra thêm
     const orderData = {
       ...customer,
       items: cart.map(item => ({ product_id: item.id, name: item.name, weight: item.weight, quantity: item.quantity, price: item.price })),
