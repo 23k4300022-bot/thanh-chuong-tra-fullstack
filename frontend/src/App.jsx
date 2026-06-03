@@ -3,6 +3,7 @@ import "./App.css";
 import "./admin.css";
 import AdminPage from "./AdminPage";
 import logo from "./assets/logo.png";
+import CheckoutModal from "./CheckoutModal";   // ← THÊM DÒNG NÀY
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -169,7 +170,6 @@ function Storefront() {
     }
   }, []);
 
-  // Auto scroll chatbot
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, chatbotLoading]);
@@ -233,7 +233,7 @@ function Storefront() {
 
   const openCheckout = () => {
     if (!currentUser) { setShowAuth(true); setAuthMode("login"); alert("Vui lòng đăng nhập trước khi thanh toán"); return; }
-    setCustomer({ ...customer, customer_name: currentUser.name || "", customer_email: currentUser.email || customer.customer_email || "" });
+    setCustomer(prev => ({ ...prev, customer_name: currentUser.name || "", customer_email: currentUser.email || prev.customer_email }));
     setShowCheckout(true);
   };
 
@@ -256,12 +256,13 @@ function Storefront() {
     } catch (error) { alert("Lỗi khi chuyển sang VNPay"); console.error(error); }
   };
 
+  /* ── submitOrder – giữ nguyên logic gốc, bỏ alert thành công (CheckoutModal lo) ── */
   const submitOrder = async e => {
     e.preventDefault();
     if (!currentUser) { alert("Vui lòng đăng nhập trước khi đặt hàng"); setShowAuth(true); return; }
     if (cart.length === 0) { alert("Giỏ hàng đang trống"); return; }
     if (!customer.customer_name || !customer.customer_email || !customer.phone || !customer.address) {
-      alert("Vui lòng nhập họ tên, email, số điện thoại và địa chỉ"); return;
+      alert("Vui lòng nhập đầy đủ thông tin"); return;
     }
     if (customer.payment_method === "VNPay Sandbox") { await payWithVnpay(); return; }
     if (customer.payment_method === "Chuyển khoản test") {
@@ -276,18 +277,14 @@ function Storefront() {
       ...customer,
       items: cart.map(item => ({ product_id: item.id, name: item.name, weight: item.weight, quantity: item.quantity, price: item.price })),
     };
-    try {
-      const res = await fetch(`${API_URL}/api/orders`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(orderData),
-      });
-      const data = await res.json();
-      if (!res.ok) { alert(data.message || "Đặt hàng thất bại"); return; }
-      alert(customer.payment_method === "Chuyển khoản test"
-        ? `Thanh toán ngân hàng test thành công! Mã đơn: ${data.order_id}`
-        : `Đặt hàng thành công! Mã đơn: ${data.order_id}`);
-      setCart([]); setShowCheckout(false);
-      setCustomer({ customer_name: currentUser.name || "", customer_email: currentUser.email || "", phone: "", address: "", note: "", payment_method: "COD", bank_name: "", bank_account: "", account_holder: "", otp: "", vnp_bank_code: "", vnp_card_number: "", vnp_card_holder: "", vnp_issue_date: "", vnp_otp: "" });
-    } catch (error) { alert("Lỗi kết nối khi đặt hàng"); console.error(error); }
+    const res = await fetch(`${API_URL}/api/orders`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(orderData),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.message || "Đặt hàng thất bại"); throw new Error("order failed"); }
+    // Thành công → CheckoutModal sẽ hiện màn hình success
+    setCart([]);
+    setCustomer({ customer_name: currentUser.name || "", customer_email: currentUser.email || "", phone: "", address: "", note: "", payment_method: "COD", bank_name: "", bank_account: "", account_holder: "", otp: "", vnp_bank_code: "", vnp_card_number: "", vnp_card_holder: "", vnp_issue_date: "", vnp_otp: "" });
   };
 
   const submitContact = async e => {
@@ -306,76 +303,38 @@ function Storefront() {
   const sendChatMessage = async () => {
     const userMessage = chatInput.trim();
     if (!userMessage || chatbotLoading) return;
-
     const previousMessages = chatMessages.slice(1).slice(-8);
-
     setChatMessages(prev => [...prev, { from: "user", text: userMessage }]);
     setChatInput("");
     setChatbotLoading(true);
-
     try {
       const res = await fetch(`${API_URL}/api/chatbot/ask`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customer_name: currentUser?.name || "",
-          customer_email: currentUser?.email || "",
-          user_message: userMessage,
-          history: previousMessages,
-        }),
+        body: JSON.stringify({ customer_name: currentUser?.name || "", customer_email: currentUser?.email || "", user_message: userMessage, history: previousMessages }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Không nhận được phản hồi từ trợ lý AI");
       setChatMessages(prev => [...prev, { from: "bot", text: data.reply }]);
     } catch (error) {
       console.error("Lỗi chatbot AI:", error);
-      setChatMessages(prev => [...prev, {
-        from: "bot",
-        text: "Xin lỗi, trợ lý AI đang tạm thời chưa phản hồi được. Bạn vui lòng thử lại sau ít phút hoặc liên hệ shop qua mục Liên hệ.",
-      }]);
-    } finally {
-      setChatbotLoading(false);
-    }
+      setChatMessages(prev => [...prev, { from: "bot", text: "Xin lỗi, trợ lý AI đang tạm thời chưa phản hồi được. Bạn vui lòng thử lại sau ít phút hoặc liên hệ shop qua mục Liên hệ." }]);
+    } finally { setChatbotLoading(false); }
   };
 
   const aboutModalData = {
-    "nguon-goc": {
-      title: "Nguồn gốc rõ ràng",
-      content: `Thanh Chương Trà ra đời từ vùng đất chè nổi tiếng Thanh Chương, Nghệ An — nơi những đồi chè xanh mướt trải dài theo từng sườn núi, gắn bó bao đời với cuộc sống người dân địa phương. Khác với nhiều vùng chè công nghiệp, chè Thanh Chương được trồng trên đất đỏ bazan, khí hậu mát mẻ quanh năm, tạo nên búp chè có độ ngọt tự nhiên và hương thơm mộc mạc rất riêng.\n\nChúng tôi hướng đến sự minh bạch từ vườn chè đến tay người dùng. Mỗi dòng sản phẩm đều ghi rõ xuất xứ, loại trà, trọng lượng và cách bảo quản.`,
-    },
-    "huong-vi": {
-      title: "Hương vị truyền thống",
-      content: `Điều làm nên sự khác biệt của trà Thanh Chương chính là hương vị mang đậm dấu ấn vùng miền. Trà có vị chát dịu, không gắt — đó là cái chát của chè non hái đúng lứa, qua công đoạn sao thủ công vừa đủ để giữ lại tinh chất tự nhiên.\n\nHậu vị ngọt thanh lan dần từ cuống lưỡi, không cần thêm đường mà vẫn cảm nhận được sự dịu dàng tự nhiên.`,
-    },
-    "cach-pha": {
-      title: "Cách pha trà",
-      content: `Bước 1 — Chuẩn bị: Dùng khoảng 5–8g trà cho ấm 150–200ml.\n\nBước 2 — Tráng trà: Rót một ít nước nóng vào ấm, lắc nhẹ rồi đổ bỏ.\n\nBước 3 — Pha trà: Dùng nước khoảng 80–90°C, không dùng nước sôi 100°C.\n\nBước 4 — Hãm trà: Đậy nắp và hãm khoảng 20–30 giây.\n\nBước 5 — Thưởng thức: Rót đều ra chén, uống khi còn ấm.`,
-    },
+    "nguon-goc": { title: "Nguồn gốc rõ ràng", content: `Thanh Chương Trà ra đời từ vùng đất chè nổi tiếng Thanh Chương, Nghệ An — nơi những đồi chè xanh mướt trải dài theo từng sườn núi, gắn bó bao đời với cuộc sống người dân địa phương. Khác với nhiều vùng chè công nghiệp, chè Thanh Chương được trồng trên đất đỏ bazan, khí hậu mát mẻ quanh năm, tạo nên búp chè có độ ngọt tự nhiên và hương thơm mộc mạc rất riêng.\n\nChúng tôi hướng đến sự minh bạch từ vườn chè đến tay người dùng. Mỗi dòng sản phẩm đều ghi rõ xuất xứ, loại trà, trọng lượng và cách bảo quản.` },
+    "huong-vi": { title: "Hương vị truyền thống", content: `Điều làm nên sự khác biệt của trà Thanh Chương chính là hương vị mang đậm dấu ấn vùng miền. Trà có vị chát dịu, không gắt — đó là cái chát của chè non hái đúng lứa, qua công đoạn sao thủ công vừa đủ để giữ lại tinh chất tự nhiên.\n\nHậu vị ngọt thanh lan dần từ cuống lưỡi, không cần thêm đường mà vẫn cảm nhận được sự dịu dàng tự nhiên.` },
+    "cach-pha": { title: "Cách pha trà", content: `Bước 1 — Chuẩn bị: Dùng khoảng 5–8g trà cho ấm 150–200ml.\n\nBước 2 — Tráng trà: Rót một ít nước nóng vào ấm, lắc nhẹ rồi đổ bỏ.\n\nBước 3 — Pha trà: Dùng nước khoảng 80–90°C, không dùng nước sôi 100°C.\n\nBước 4 — Hãm trà: Đậy nắp và hãm khoảng 20–30 giây.\n\nBước 5 — Thưởng thức: Rót đều ra chén, uống khi còn ấm.` },
   };
 
   return (
     <div>
-      {/* Keyframes cho typing animation */}
       <style>{`
-        @keyframes typingBounce {
-          0%, 60%, 100% { transform: translateY(0); }
-          30% { transform: translateY(-6px); }
-        }
-        @keyframes chatBadgePulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.2); }
-        }
-        @keyframes chatToggleWiggle {
-          0%, 100% { transform: rotate(0deg); }
-          25% { transform: rotate(-8deg); }
-          75% { transform: rotate(8deg); }
-        }
-        .chatbot-toggle-btn {
-          animation: chatToggleWiggle 3s ease-in-out infinite;
-        }
-        .chatbot-toggle-btn:hover {
-          animation: none;
-          transform: scale(1.08);
-        }
+        @keyframes typingBounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+        @keyframes chatBadgePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+        @keyframes chatToggleWiggle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
+        .chatbot-toggle-btn { animation: chatToggleWiggle 3s ease-in-out infinite; }
+        .chatbot-toggle-btn:hover { animation: none; transform: scale(1.08); }
       `}</style>
 
       <header className="site-header">
@@ -403,9 +362,7 @@ function Storefront() {
               <button onClick={logout}>Đăng xuất</button>
             </div>
           ) : (
-            <button className="auth-button" onClick={() => { setShowAuth(true); setAuthMode("login"); }}>
-              Đăng nhập
-            </button>
+            <button className="auth-button" onClick={() => { setShowAuth(true); setAuthMode("login"); }}>Đăng nhập</button>
           )}
           <button className="cart-button" onClick={openCheckout}>
             Giỏ hàng <span>{cartCount}</span>
@@ -535,13 +492,10 @@ function Storefront() {
           </div>
         </section>
 
-        {/* ===== CONTACT SECTION - NÂNG CẤP ===== */}
         <section className="contact-section" id="contact">
           <div>
             <p className="eyebrow green">Liên hệ</p>
             <h2>Đặt mua Thanh Chương Trà</h2>
-
-            {/* Thông tin liên hệ dạng card */}
             <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28, marginTop: 20 }}>
               {[
                 { icon: "📞", label: "Hotline", value: "0900 000 000" },
@@ -549,11 +503,7 @@ function Storefront() {
                 { icon: "📍", label: "Địa chỉ", value: "Thanh Chương, Nghệ An" },
                 { icon: "🕐", label: "Giờ làm việc", value: "7:00 – 21:00 hàng ngày" },
               ].map(item => (
-                <div key={item.label} style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  background: "rgba(255,255,255,0.08)", borderRadius: 10,
-                  padding: "10px 16px", backdropFilter: "blur(4px)"
-                }}>
+                <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 16px", backdropFilter: "blur(4px)" }}>
                   <span style={{ fontSize: 20 }}>{item.icon}</span>
                   <div>
                     <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 1 }}>{item.label}</div>
@@ -562,111 +512,55 @@ function Storefront() {
                 </div>
               ))}
             </div>
-
-            {/* Google Maps embed */}
             <div style={{ borderRadius: 16, overflow: "hidden", border: "3px solid rgba(255,255,255,0.15)" }}>
               <iframe
                 title="Bản đồ Thanh Chương, Nghệ An"
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d59877.11!2d105.2!3d18.73!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x313685b5a3c3ef8b%3A0x5e5e5e5e5e5e5e5e!2sThanh%20Ch%C6%B0%C6%A1ng%2C%20Ngh%E1%BB%87%20An!5e0!3m2!1svi!2svn!4v1"
-                width="100%"
-                height="220"
+                width="100%" height="220"
                 style={{ border: 0, display: "block" }}
-                allowFullScreen=""
-                loading="lazy"
+                allowFullScreen loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
               />
             </div>
           </div>
-
           <form className="contact-form" onSubmit={submitContact}>
-            <input type="text" placeholder="Họ và tên" value={contact.name}
-              onChange={e => setContact({ ...contact, name: e.target.value })} required />
-            <input type="text" placeholder="Số điện thoại" value={contact.phone}
-              onChange={e => setContact({ ...contact, phone: e.target.value })} />
-            <input type="email" placeholder="Email" value={contact.email}
-              onChange={e => setContact({ ...contact, email: e.target.value })} />
-            <textarea placeholder="Nội dung cần tư vấn" value={contact.message}
-              onChange={e => setContact({ ...contact, message: e.target.value })} required />
+            <input type="text" placeholder="Họ và tên" value={contact.name} onChange={e => setContact({ ...contact, name: e.target.value })} required />
+            <input type="text" placeholder="Số điện thoại" value={contact.phone} onChange={e => setContact({ ...contact, phone: e.target.value })} />
+            <input type="email" placeholder="Email" value={contact.email} onChange={e => setContact({ ...contact, email: e.target.value })} />
+            <textarea placeholder="Nội dung cần tư vấn" value={contact.message} onChange={e => setContact({ ...contact, message: e.target.value })} required />
             <button>Gửi liên hệ</button>
           </form>
         </section>
       </main>
 
-      {/* ===== FOOTER NÂNG CẤP ===== */}
-      <footer style={{
-        background: "#0d2e14",
-        color: "#c8e6c9",
-        padding: "48px 5% 24px",
-      }}>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: 40,
-          maxWidth: 1100,
-          margin: "0 auto",
-          paddingBottom: 32,
-          borderBottom: "1px solid rgba(255,255,255,0.1)"
-        }}>
-          {/* Cột 1: Thương hiệu */}
+      {/* FOOTER */}
+      <footer style={{ background: "#0d2e14", color: "#c8e6c9", padding: "48px 5% 24px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 40, maxWidth: 1100, margin: "0 auto", paddingBottom: 32, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
           <div>
             <h3 style={{ color: "#fff", marginBottom: 8, fontSize: 20 }}>Thanh Chương Trà</h3>
-            <p style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.75 }}>
-              Hương xanh xứ Nghệ trong từng chén trà. Tinh chọn từ vùng chè Thanh Chương, Nghệ An.
-            </p>
+            <p style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.75 }}>Hương xanh xứ Nghệ trong từng chén trà. Tinh chọn từ vùng chè Thanh Chương, Nghệ An.</p>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              {[
-                { label: "Facebook", url: "https://www.facebook.com/share/18adUuHPZp/?mibextid=wwXIfr" },
-                { label: "Zalo", url: "https://zalo.me/0985605049" },
-                { label: "TikTok", url: "https://www.tiktok.com/@hthtyuyu" },
-              ].map(sn => (
-                <a key={sn.label} href={sn.url} target="_blank" rel="noopener noreferrer" style={{
-                  background: "rgba(255,255,255,0.1)", borderRadius: 8,
-                  padding: "6px 12px", fontSize: 12, cursor: "pointer",
-                  transition: "background 0.2s", color: "#c8e6c9",
-                  textDecoration: "none"
-                }}>{sn.label}</a>
+              {[{ label: "Facebook", url: "https://www.facebook.com/share/18adUuHPZp/?mibextid=wwXIfr" }, { label: "Zalo", url: "https://zalo.me/0985605049" }, { label: "TikTok", url: "https://www.tiktok.com/@hthtyuyu" }].map(sn => (
+                <a key={sn.label} href={sn.url} target="_blank" rel="noopener noreferrer" style={{ background: "rgba(255,255,255,0.1)", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", transition: "background 0.2s", color: "#c8e6c9", textDecoration: "none" }}>{sn.label}</a>
               ))}
             </div>
           </div>
-
-          {/* Cột 2: Liên kết nhanh */}
           <div>
             <h4 style={{ color: "#fff", marginBottom: 16, fontSize: 14, textTransform: "uppercase", letterSpacing: 1 }}>Liên kết nhanh</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[
-                { label: "Trang chủ", href: "#home" },
-                { label: "Sản phẩm", href: "#products" },
-                { label: "Hộp quà", href: "#gift" },
-                { label: "Cách pha trà", href: "#guide" },
-                { label: "Liên hệ", href: "#contact" },
-              ].map(link => (
-                <a key={link.label} href={link.href} style={{
-                  color: "#a5d6a7", textDecoration: "none", fontSize: 14,
-                  opacity: 0.85, transition: "opacity 0.2s"
-                }}>{link.label}</a>
+              {[{ label: "Trang chủ", href: "#home" }, { label: "Sản phẩm", href: "#products" }, { label: "Hộp quà", href: "#gift" }, { label: "Cách pha trà", href: "#guide" }, { label: "Liên hệ", href: "#contact" }].map(link => (
+                <a key={link.label} href={link.href} style={{ color: "#a5d6a7", textDecoration: "none", fontSize: 14, opacity: 0.85 }}>{link.label}</a>
               ))}
             </div>
           </div>
-
-          {/* Cột 3: Chính sách */}
           <div>
             <h4 style={{ color: "#fff", marginBottom: 16, fontSize: 14, textTransform: "uppercase", letterSpacing: 1 }}>Chính sách</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[
-                { label: "🚚 Chính sách vận chuyển", key: "van-chuyen" },
-                { label: "🔄 Chính sách đổi trả", key: "doi-tra" },
-                { label: "🔒 Chính sách bảo mật", key: "bao-mat" },
-              ].map(policy => (
-                <button key={policy.key} onClick={() => setShowPolicyModal(policy.key)} style={{
-                  background: "none", border: "none", color: "#a5d6a7",
-                  fontSize: 14, cursor: "pointer", textAlign: "left",
-                  padding: 0, opacity: 0.85
-                }}>{policy.label}</button>
+              {[{ label: "🚚 Chính sách vận chuyển", key: "van-chuyen" }, { label: "🔄 Chính sách đổi trả", key: "doi-tra" }, { label: "🔒 Chính sách bảo mật", key: "bao-mat" }].map(policy => (
+                <button key={policy.key} onClick={() => setShowPolicyModal(policy.key)} style={{ background: "none", border: "none", color: "#a5d6a7", fontSize: 14, cursor: "pointer", textAlign: "left", padding: 0, opacity: 0.85 }}>{policy.label}</button>
               ))}
             </div>
           </div>
-
-          {/* Cột 4: Liên hệ */}
           <div>
             <h4 style={{ color: "#fff", marginBottom: 16, fontSize: 14, textTransform: "uppercase", letterSpacing: 1 }}>Liên hệ</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13, opacity: 0.8 }}>
@@ -677,11 +571,7 @@ function Storefront() {
             </div>
           </div>
         </div>
-
-        <div style={{
-          textAlign: "center", marginTop: 24, fontSize: 13,
-          opacity: 0.5, maxWidth: 1100, margin: "24px auto 0"
-        }}>
+        <div style={{ textAlign: "center", marginTop: 24, fontSize: 13, opacity: 0.5, maxWidth: 1100, margin: "24px auto 0" }}>
           © 2025 Thanh Chương Trà. Bảo lưu mọi quyền.
         </div>
       </footer>
@@ -711,13 +601,10 @@ function Storefront() {
             <h2>{authMode === "login" ? "Đăng nhập" : "Đăng ký"}</h2>
             <form onSubmit={authMode === "login" ? handleLogin : handleRegister}>
               {authMode === "register" && (
-                <input type="text" placeholder="Họ và tên" value={authForm.name}
-                  onChange={e => setAuthForm({ ...authForm, name: e.target.value })} required />
+                <input type="text" placeholder="Họ và tên" value={authForm.name} onChange={e => setAuthForm({ ...authForm, name: e.target.value })} required />
               )}
-              <input type="email" placeholder="Email" value={authForm.email}
-                onChange={e => setAuthForm({ ...authForm, email: e.target.value })} required />
-              <input type="password" placeholder="Mật khẩu" value={authForm.password}
-                onChange={e => setAuthForm({ ...authForm, password: e.target.value })} required />
+              <input type="email" placeholder="Email" value={authForm.email} onChange={e => setAuthForm({ ...authForm, email: e.target.value })} required />
+              <input type="password" placeholder="Mật khẩu" value={authForm.password} onChange={e => setAuthForm({ ...authForm, password: e.target.value })} required />
               <button>{authMode === "login" ? "Đăng nhập" : "Đăng ký"}</button>
             </form>
             {authMode === "login" ? (
@@ -758,79 +645,23 @@ function Storefront() {
         </div>
       )}
 
+      {/* ===== CHECKOUT MODAL MỚI ===== */}
       {showCheckout && (
-        <div className="modal">
-          <div className="checkout-modal">
-            <button className="close" onClick={() => setShowCheckout(false)}>×</button>
-            <h2>Giỏ hàng & thanh toán</h2>
-            {cart.length === 0 ? <p>Giỏ hàng đang trống.</p> : (
-              <>
-                <div className="cart-list">
-                  {cart.map(item => (
-                    <div className="cart-item" key={item.id}>
-                      <div><h4>{item.name}</h4><p>{formatPrice(item.price)}</p></div>
-                      <div className="qty">
-                        <button type="button" onClick={() => decreaseQty(item.id)}>-</button>
-                        <span>{item.quantity}</span>
-                        <button type="button" onClick={() => increaseQty(item.id)}>+</button>
-                      </div>
-                      <button type="button" className="remove" onClick={() => removeFromCart(item.id)}>Xóa</button>
-                    </div>
-                  ))}
-                </div>
-                <h3 className="total">Tổng tiền: {formatPrice(totalAmount)}</h3>
-                <form className="checkout-form" onSubmit={submitOrder}>
-                  <input type="text" placeholder="Họ và tên" value={customer.customer_name}
-                    onChange={e => setCustomer({ ...customer, customer_name: e.target.value })} required />
-                  <input type="email" placeholder="Email nhận xác nhận đơn hàng" value={customer.customer_email}
-                    onChange={e => setCustomer({ ...customer, customer_email: e.target.value })} required />
-                  <input type="text" placeholder="Số điện thoại" value={customer.phone}
-                    onChange={e => setCustomer({ ...customer, phone: e.target.value })} required />
-                  <textarea placeholder="Địa chỉ nhận hàng" value={customer.address}
-                    onChange={e => setCustomer({ ...customer, address: e.target.value })} required />
-                  <textarea placeholder="Ghi chú đơn hàng" value={customer.note}
-                    onChange={e => setCustomer({ ...customer, note: e.target.value })} />
-                  <select value={customer.payment_method} onChange={e => setCustomer({ ...customer, payment_method: e.target.value, bank_name: "", bank_account: "", account_holder: "", otp: "", vnp_bank_code: "", vnp_card_number: "", vnp_card_holder: "", vnp_issue_date: "", vnp_otp: "" })}>
-                    <option value="COD">Thanh toán khi nhận hàng - COD</option>
-                    <option value="Chuyển khoản test">Thanh toán qua ngân hàng</option>
-                    <option value="VNPay Sandbox">Thanh toán qua VNPay</option>
-                  </select>
-                  {customer.payment_method === "Chuyển khoản test" && (
-                    <div className="bank-payment-box">
-                      <h4>Thanh toán qua ngân hàng</h4>
-                      <label>Chọn ngân hàng</label>
-                      <select value={customer.bank_name} onChange={e => setCustomer({ ...customer, bank_name: e.target.value })} required>
-                        <option value="">-- Chọn ngân hàng --</option>
-                        <option value="VCB">Vietcombank - VCB</option>
-                        <option value="BIDV">BIDV</option>
-                        <option value="TCB">Techcombank - TCB</option>
-                        <option value="MB">MB Bank</option>
-                        <option value="ACB">ACB</option>
-                        <option value="TPB">TPBank</option>
-                      </select>
-                      <label>Số tài khoản</label>
-                      <input type="text" placeholder="Nhập số tài khoản" value={customer.bank_account}
-                        onChange={e => setCustomer({ ...customer, bank_account: e.target.value })} required />
-                      <label>Tên chủ tài khoản</label>
-                      <input type="text" placeholder="Nhập tên chủ tài khoản" value={customer.account_holder}
-                        onChange={e => setCustomer({ ...customer, account_holder: e.target.value })} required />
-                      <label>OTP</label>
-                      <input type="text" placeholder="Nhập OTP" value={customer.otp}
-                        onChange={e => setCustomer({ ...customer, otp: e.target.value })} required />
-                    </div>
-                  )}
-                  <button>
-                    {customer.payment_method === "Chuyển khoản test" ? "Thanh toán qua ngân hàng"
-                      : customer.payment_method === "VNPay Sandbox" ? "Thanh toán qua VNPay" : "Đặt hàng"}
-                  </button>
-                </form>
-              </>
-            )}
-          </div>
-        </div>
+        <CheckoutModal
+          cart={cart}
+          onClose={() => setShowCheckout(false)}
+          onInc={increaseQty}
+          onDec={decreaseQty}
+          onRemove={removeFromCart}
+          customer={customer}
+          setCustomer={setCustomer}
+          onSubmit={submitOrder}
+          onVnpay={payWithVnpay}
+          currentUser={currentUser}
+        />
       )}
 
-      {/* ===== CHATBOT NÂNG CẤP ===== */}
+      {/* ===== CHATBOT ===== */}
       <div className="chatbot-widget">
         {showChatbot && (
           <div className="chatbot-box">
@@ -839,29 +670,17 @@ function Storefront() {
                 <BotAvatar />
                 <div>
                   <strong>Trợ lý Thanh Chương Trà</strong>
-                  <span style={{ display: "block", fontSize: 11, opacity: 0.8 }}>
-                    {chatbotLoading ? "🟡 Đang trả lời..." : "🟢 Trực tuyến"}
-                  </span>
+                  <span style={{ display: "block", fontSize: 11, opacity: 0.8 }}>{chatbotLoading ? "🟡 Đang trả lời..." : "🟢 Trực tuyến"}</span>
                 </div>
               </div>
               <button type="button" onClick={() => setShowChatbot(false)}>×</button>
             </div>
-
             <div className="chatbot-messages">
               {chatMessages.map((message, index) => (
-                <div key={index} style={{
-                  display: "flex",
-                  flexDirection: message.from === "user" ? "row-reverse" : "row",
-                  alignItems: "flex-end",
-                  gap: 8,
-                  marginBottom: 12,
-                }}>
+                <div key={index} style={{ display: "flex", flexDirection: message.from === "user" ? "row-reverse" : "row", alignItems: "flex-end", gap: 8, marginBottom: 12 }}>
                   {message.from === "bot" && <BotAvatar />}
                   <div className={message.from === "user" ? "chat-message user-message" : "chat-message bot-message"}
-                    style={{
-                      borderRadius: message.from === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                      maxWidth: "78%",
-                    }}>
+                    style={{ borderRadius: message.from === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", maxWidth: "78%" }}>
                     {message.text}
                   </div>
                 </div>
@@ -869,38 +688,19 @@ function Storefront() {
               {chatbotLoading && <TypingIndicator />}
               <div ref={chatEndRef} />
             </div>
-
             <div className="chatbot-input">
-              <input
-                type="text"
-                placeholder="Nhập câu hỏi..."
-                value={chatInput}
-                disabled={chatbotLoading}
+              <input type="text" placeholder="Nhập câu hỏi..." value={chatInput} disabled={chatbotLoading}
                 onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") sendChatMessage(); }}
-              />
-              <button type="button" onClick={sendChatMessage} disabled={chatbotLoading}>
-                {chatbotLoading ? "..." : "Gửi"}
-              </button>
+                onKeyDown={e => { if (e.key === "Enter") sendChatMessage(); }} />
+              <button type="button" onClick={sendChatMessage} disabled={chatbotLoading}>{chatbotLoading ? "..." : "Gửi"}</button>
             </div>
           </div>
         )}
-
-        <button
-          type="button"
-          className="chatbot-toggle chatbot-toggle-btn"
+        <button type="button" className="chatbot-toggle chatbot-toggle-btn"
           onClick={() => { setShowChatbot(!showChatbot); setShowChatBadge(false); }}
-          style={{ position: "relative" }}
-        >
+          style={{ position: "relative" }}>
           {!showChatbot && showChatBadge && (
-            <span style={{
-              position: "absolute", top: -4, right: -4,
-              background: "#e53935", color: "#fff",
-              borderRadius: "50%", width: 18, height: 18,
-              fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center",
-              animation: "chatBadgePulse 1.5s infinite",
-              fontWeight: "bold"
-            }}>1</span>
+            <span style={{ position: "absolute", top: -4, right: -4, background: "#e53935", color: "#fff", borderRadius: "50%", width: 18, height: 18, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", animation: "chatBadgePulse 1.5s infinite", fontWeight: "bold" }}>1</span>
           )}
           {showChatbot ? "×" : "🍵"}
         </button>
