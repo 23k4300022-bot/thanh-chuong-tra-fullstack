@@ -15,12 +15,12 @@ app.use(express.json());
 /* ===================== GEMINI AI CHATBOT CONFIG ===================== */
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-// FIX: Sửa tên model đúng
-// MỚI - sửa thành
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 const GEMINI_API_URL =
-`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
 const chatbotRequestTimes = new Map();
+
 function canAskChatbot(ip) {
   const now = Date.now();
   const windowMs = 60 * 1000;
@@ -39,7 +39,6 @@ function canAskChatbot(ip) {
   return true;
 }
 
-// FIX: Đảm bảo history bắt đầu bằng "user" (Gemini yêu cầu)
 function cleanChatHistory(history) {
   if (!Array.isArray(history)) return [];
 
@@ -55,7 +54,6 @@ function cleanChatHistory(history) {
     }))
     .filter((message) => message.parts[0].text.trim());
 
-  // Gemini yêu cầu cuộc hội thoại phải bắt đầu bằng role "user"
   const firstUserIdx = filtered.findIndex((m) => m.role === "user");
   if (firstUserIdx < 0) return [];
   return firstUserIdx > 0 ? filtered.slice(firstUserIdx) : filtered;
@@ -111,6 +109,8 @@ DỮ LIỆU SẢN PHẨM HIỆN CÓ:
 ${productContext}
   `.trim();
 
+  // FIX: Nhúng systemInstruction vào contents thay vì dùng field riêng
+  // (Gemini v1beta không hỗ trợ field systemInstruction ở top-level)
   const response = await fetch(GEMINI_API_URL, {
     method: "POST",
     headers: {
@@ -118,10 +118,15 @@ ${productContext}
       "x-goog-api-key": GEMINI_API_KEY,
     },
     body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: systemInstruction }],
-      },
       contents: [
+        {
+          role: "user",
+          parts: [{ text: systemInstruction }],
+        },
+        {
+          role: "model",
+          parts: [{ text: "Tôi hiểu rồi, tôi sẽ hỗ trợ theo hướng dẫn trên." }],
+        },
         ...cleanChatHistory(history),
         {
           role: "user",
