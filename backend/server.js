@@ -16,10 +16,10 @@ app.use(express.json());
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 // FIX: Sửa tên model đúng
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
-  const GEMINI_API_URL =
-  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-
+// MỚI - sửa thành
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const GEMINI_API_URL =
+  `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`;
 const chatbotRequestTimes = new Map();
 function canAskChatbot(ip) {
   const now = Date.now();
