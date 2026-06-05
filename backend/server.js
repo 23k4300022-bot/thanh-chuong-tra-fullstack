@@ -20,7 +20,6 @@ const GEMINI_API_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const chatbotRequestTimes = new Map();
-
 function canAskChatbot(ip) {
   const now = Date.now();
   const windowMs = 60 * 1000;
@@ -109,8 +108,6 @@ DỮ LIỆU SẢN PHẨM HIỆN CÓ:
 ${productContext}
   `.trim();
 
-  // FIX: Nhúng systemInstruction vào contents thay vì dùng field riêng
-  // (Gemini v1beta không hỗ trợ field systemInstruction ở top-level)
   const response = await fetch(GEMINI_API_URL, {
     method: "POST",
     headers: {
@@ -118,15 +115,10 @@ ${productContext}
       "x-goog-api-key": GEMINI_API_KEY,
     },
     body: JSON.stringify({
+      systemInstruction: {
+        parts: [{ text: systemInstruction }],
+      },
       contents: [
-        {
-          role: "user",
-          parts: [{ text: systemInstruction }],
-        },
-        {
-          role: "model",
-          parts: [{ text: "Tôi hiểu rồi, tôi sẽ hỗ trợ theo hướng dẫn trên." }],
-        },
         ...cleanChatHistory(history),
         {
           role: "user",
