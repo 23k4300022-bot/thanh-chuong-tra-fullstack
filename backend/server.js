@@ -169,6 +169,7 @@ function formatMoney(amount) {
 function formatDateTime(date = new Date()) {
   return new Date(date).toLocaleString("vi-VN", {
     hour12: false,
+    timeZone: "Asia/Ho_Chi_Minh",
   });
 }
 
