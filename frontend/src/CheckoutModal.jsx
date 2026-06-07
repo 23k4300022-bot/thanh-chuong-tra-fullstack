@@ -301,6 +301,14 @@ const STYLES = `
 .co-success-qr img { width:160px; height:160px; border-radius:10px; }
 .co-success-qr p { font-size:11px; color:#666; text-align:center; margin:0; line-height:1.6; }
 
+/* NOTE BOX on success */
+.co-note-warn {
+  background:#fff3e0; border:1.5px solid #ffb74d; border-radius:14px;
+  padding:13px 16px; font-size:12px; color:#5d4037; line-height:1.8;
+  width:100%; max-width:460px; margin-bottom:16px; text-align:left;
+}
+.co-note-warn strong { color:#e65100; }
+
 .co-success-btn { background:#1f7a36; color:#fff; border:none; border-radius:14px; padding:13px 38px; font-size:14px; font-weight:800; cursor:pointer; transition:all .2s; font-family:'Be Vietnam Pro',sans-serif; box-shadow:0 6px 20px rgba(31,122,54,.3); }
 .co-success-btn.blue { background:#1565c0; box-shadow:0 6px 20px rgba(21,101,192,.3); }
 .co-success-btn:hover { filter:brightness(0.88); transform:translateY(-1px); }
@@ -344,7 +352,7 @@ const PAY_OPTS = [
 ];
 
 function buildVietQRUrl(amount, addInfo) {
-  return `https://img.vietqr.io/image/${BANK_INFO.bin}-${BANK_INFO.stk}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(addInfo||"Thanh toan TCTra")}&accountName=${encodeURIComponent(BANK_INFO.owner)}`;
+  return `https://img.vietqr.io/image/${BANK_INFO.bin}-${BANK_INFO.stk}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(addInfo||"Thanh toan TCT")}&accountName=${encodeURIComponent(BANK_INFO.owner)}`;
 }
 
 function Steps({ active }) {
@@ -373,25 +381,18 @@ function CopyBtn({ text }) {
   return <button className={`co-copy-btn${copied?" copied":""}`} type="button" onClick={copy}>{copied?"✓ Đã sao chép":"Sao chép"}</button>;
 }
 
-function BankInfoBox({ amount, transferNote }) {
-  const qrUrl = buildVietQRUrl(amount>0?amount:0, transferNote||"Thanh toan TCTra");
+function BankInfoBox({ amount }) {
+  // Trong form chưa có order_id — chỉ hiển thị thông tin TK, hướng dẫn quét QR SAU KHI đặt hàng
   return (
     <div className="co-bank-info">
       <div className="co-bank-info-header">
         <div className="bank-logo">B</div>
         <div>
           <h4>Chuyển khoản BIDV</h4>
-          <p>Quét QR — số tiền &amp; nội dung tự điền sẵn</p>
+          <p>Đặt hàng xong → quét QR trên màn hình xác nhận</p>
         </div>
       </div>
       <div className="co-bank-info-body">
-        <div className="co-qr-wrap">
-          <div className="co-qr-label">📱 Quét mã QR để thanh toán</div>
-          {amount>0&&<div className="co-qr-amount">{fmt(amount)}</div>}
-          <img className="co-qr-img" src={qrUrl} alt="QR BIDV" onError={e=>{e.target.style.display="none";}}/>
-          <p className="co-qr-hint">Dùng app ngân hàng bất kỳ quét mã<br/>Số tiền &amp; nội dung <strong>tự động điền sẵn</strong></p>
-        </div>
-        <div style={{fontSize:10,fontWeight:700,color:"#aaa",textAlign:"center",letterSpacing:".06em",textTransform:"uppercase",margin:"2px 0"}}>— hoặc chuyển khoản thủ công —</div>
         <div className="co-bank-row">
           <div><div className="co-bank-row-label">Số tài khoản</div><div className="co-bank-row-value">{BANK_INFO.stk}</div></div>
           <CopyBtn text={BANK_INFO.stk}/>
@@ -409,8 +410,8 @@ function BankInfoBox({ amount, transferNote }) {
           </div>
         )}
         <div className="co-bank-note">
-          📝 Nội dung CK: <strong>Tên + SĐT + TCTra</strong><br/>
-          Ví dụ: <strong>Nguyen Hong 0912345678 TCTra</strong><br/>
+          ⚠️ <strong>Quan trọng:</strong> Sau khi bấm <strong>"Đặt hàng"</strong>, màn hình xác nhận sẽ hiện <strong>mã QR riêng</strong> cho đơn của bạn.<br/>
+          Vui lòng <strong>quét QR đó</strong> để nội dung chuyển khoản tự điền đúng mã đơn.<br/>
           ⏱ Đơn xác nhận sau khi nhận thanh toán (5–15 phút)
         </div>
       </div>
@@ -502,7 +503,7 @@ export default function CheckoutModal({
   const [ordNum, setOrdNum] = useState("");
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  // ✅ FIX: liveTransferNote nhúng order_id sau khi tạo đơn thành công
+  // liveTransferNote có TCT#id — chỉ set sau khi tạo đơn thành công
   const [liveTransferNote, setLiveTransferNote] = useState("");
   const confettiRef = useRef(null);
   const totalAmount = cart.reduce((s,i)=>s+Number(i.price)*i.quantity, 0);
@@ -547,7 +548,7 @@ export default function CheckoutModal({
       setOrdNum(id);
 
       if(customer.payment_method==="Chuyển khoản test"){
-        // ✅ FIX: nhúng order_id vào nội dung — webhook sẽ match chính xác TCT#id
+        // ✅ Nhúng TCT#id vào nội dung — webhook match chính xác
         const lastName = (customer.customer_name || "").trim().split(" ").pop();
         setLiveTransferNote(`${lastName} ${customer.phone} TCT#${id}`);
         setSuccessType("bank");
@@ -567,18 +568,8 @@ export default function CheckoutModal({
     if(errors[key])setErrors(prev=>{const n={...prev};delete n[key];return n;});
   };
 
-  // Note dùng trước khi submit (hiển thị trong form)
-  const transferNote = customer.customer_name && customer.phone
-    ? `${customer.customer_name.split(" ").pop()} ${customer.phone} TCTra`
-    : "Thanh toan TCTra";
-
-  // ✅ Sau khi submit: dùng liveTransferNote (có TCT#id), trước đó dùng transferNote
-  const activeNote = liveTransferNote || transferNote;
-
-  // QR trên màn hình success dùng activeNote (có order_id)
-  const successQrUrl = buildVietQRUrl(totalAmount, activeNote);
-  // QR trong form dùng transferNote thường (chưa có order_id)
-  const formQrUrl = buildVietQRUrl(totalAmount, transferNote);
+  // QR success dùng liveTransferNote (có TCT#id)
+  const successQrUrl = buildVietQRUrl(totalAmount, liveTransferNote);
 
   const payLabel={ COD:"Tiền mặt (COD)", "Chuyển khoản test":"Chuyển khoản BIDV", "VNPay Sandbox":"VNPay Sandbox", MoMo:"MoMo" }[payMethod]||payMethod;
   const submitClass = payMethod==="Chuyển khoản test"?"bank":payMethod==="VNPay Sandbox"?"vnpay":"";
@@ -629,16 +620,16 @@ export default function CheckoutModal({
           <button className="co-success-btn" type="button" onClick={onClose}>Tiếp tục mua sắm 🍃</button>
         </div>
 
-        {/* ===== SUCCESS: CHUYỂN KHOẢN — chờ thanh toán ===== */}
+        {/* ===== SUCCESS: CHUYỂN KHOẢN ===== */}
         <div className={`co-success${successType==="bank"?" show":""}`}>
           <div className="co-success-ring blue">🏦</div>
           <h2 className="blue">Đơn đã ghi nhận! Chờ thanh toán</h2>
           <p className="sub">
-            Đơn <strong>#{ordNum}</strong> đã được tạo và đang chờ bạn chuyển khoản.<br/>
-            Hệ thống sẽ <strong>tự động xác nhận</strong> sau khi nhận được tiền (5–15 phút).
+            Đơn <strong>#{ordNum}</strong> đã được tạo.<br/>
+            Quét QR bên dưới — số tiền &amp; nội dung <strong>tự điền sẵn đúng mã đơn</strong>.
           </p>
 
-          {/* QR dùng activeNote (có TCT#id) để webhook match đúng */}
+          {/* ✅ QR dùng liveTransferNote có TCT#id — webhook match chính xác */}
           <div className="co-success-qr">
             <div className="co-qr-label">📱 Quét để chuyển khoản ngay</div>
             <div className="co-qr-amount">{fmt(totalAmount)}</div>
@@ -646,13 +637,20 @@ export default function CheckoutModal({
             <p>App ngân hàng bất kỳ — số tiền &amp; nội dung tự điền sẵn</p>
           </div>
 
+          {/* ✅ Hướng dẫn rõ nếu nhập tay */}
+          <div className="co-note-warn">
+            ⚠️ Nếu nhập tay, nội dung CK phải là:<br/>
+            <strong style={{fontSize:14,letterSpacing:.5}}>{liveTransferNote}</strong><br/>
+            <span style={{fontSize:11,color:"#888"}}>(có dấu # — ví dụ: TCT#141)</span>
+          </div>
+
           <div className="co-order-card bank">
             <div className="co-order-row"><span className="lbl">Mã đơn hàng</span><span className="val">#{ordNum}</span></div>
             <div className="co-order-row"><span className="lbl">Khách hàng</span><span className="val">{customer.customer_name}</span></div>
             <div className="co-order-row"><span className="lbl">Điện thoại</span><span className="val">{customer.phone}</span></div>
             <div className="co-order-row"><span className="lbl">STK nhận</span><span className="val">BIDV — {BANK_INFO.stk}</span></div>
-            {/* ✅ Hiển thị activeNote (có TCT#id) để khách nhập đúng nội dung */}
-            <div className="co-order-row"><span className="lbl">Nội dung CK</span><span className="val">{activeNote}</span></div>
+            {/* ✅ Nội dung CK hiển thị rõ TCT#id */}
+            <div className="co-order-row"><span className="lbl">Nội dung CK</span><span className="val" style={{color:"#c62828",fontWeight:900}}>{liveTransferNote}</span></div>
             <div className="co-order-row big"><span className="lbl">Số tiền</span><span className="val">{fmt(totalAmount)}</span></div>
           </div>
           <button className="co-success-btn blue" type="button" onClick={onClose}>Đã chuyển khoản xong ✓</button>
@@ -717,8 +715,7 @@ export default function CheckoutModal({
                     ))}
                   </div>
 
-                  {/* Form dùng formQrUrl (transferNote thường, chưa có order_id) */}
-                  {payMethod==="Chuyển khoản test"&&<BankInfoBox amount={totalAmount} transferNote={transferNote}/>}
+                  {payMethod==="Chuyển khoản test"&&<BankInfoBox amount={totalAmount}/>}
                   {payMethod==="VNPay Sandbox"&&<VNPayBox/>}
                   {payMethod==="MoMo"&&<MoMoBox amount={totalAmount}/>}
                 </div>
