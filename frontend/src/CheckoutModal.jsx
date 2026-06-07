@@ -338,7 +338,7 @@ const genOrderId = () => "TCT"+String(Date.now()).slice(-6);
 const CF_COLORS = ["#1f7a36","#b96b00","#ffe57a","#2d9e4e","#ff6b6b","#4ecdc4","#a8e063"];
 
 const BANK_INFO = {
-  stk: "5180971464",
+  stk: "96247TRUONG2005",  // ← đổi thành VA của SePay
   bank: "BIDV",
   owner: "NGUYEN HONG TRUONG",
   bin: "970418",
