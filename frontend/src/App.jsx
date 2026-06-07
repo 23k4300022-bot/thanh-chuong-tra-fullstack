@@ -103,7 +103,7 @@ function Storefront() {
   const [authMode, setAuthMode] = useState("login");
   const [currentUser, setCurrentUser] = useState(null);
   const [showPolicyModal, setShowPolicyModal] = useState(null);
-  const [menuOpen, setMenuOpen] = useState(false); // ← HAMBURGER STATE
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const [showChatbot, setShowChatbot] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -143,7 +143,6 @@ function Storefront() {
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages, chatbotLoading]);
 
-  // Khoá scroll body khi menu mở
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
@@ -162,6 +161,17 @@ function Storefront() {
   const giftProducts = useMemo(() => products.filter(item => String(item.category || "").toLowerCase().includes("hộp quà")), [products]);
 
   const formatPrice = price => Number(price || 0).toLocaleString("vi-VN") + "đ";
+
+  const calcSalePrice = (price, discountPercent, discountAmount) => {
+    let p = Number(price || 0);
+    if (Number(discountPercent) > 0) p = p * (1 - Number(discountPercent) / 100);
+    else if (Number(discountAmount) > 0) p = p - Number(discountAmount);
+    return Math.max(0, Math.round(p));
+  };
+
+  const isHotProduct = (product) =>
+    product.is_hot || Number(product.sold_count || 0) >= 10;
+
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleRegister = e => {
@@ -556,27 +566,102 @@ function Storefront() {
             <h2>Sản phẩm nổi bật</h2>
           </div>
           <div className="product-grid">
-            {filteredProducts.map(product => (
-              <article className="product-card" key={product.id}>
-                <div className="product-image">
-                  <img src={product.image_url} alt={product.name} />
-                  <span>{product.category}</span>
-                </div>
-                <div className="product-body">
-                  <h3>{product.name}</h3>
-                  <p>{product.description}</p>
-                  <div className="product-meta">
-                    <span>{product.weight}</span>
-                    <span>{product.origin}</span>
+            {filteredProducts.map(product => {
+              const discPct = Number(product.discount_percent || 0);
+              const discAmt = Number(product.discount_amount  || 0);
+              const hasDiscount = discPct > 0 || discAmt > 0;
+              const salePrice = calcSalePrice(product.price, discPct, discAmt);
+              const stock = Number(product.stock ?? 999);
+              const hot = isHotProduct(product);
+              const lowStock = stock > 0 && stock < 10;
+              const outOfStock = stock === 0;
+
+              return (
+                <article className="product-card" key={product.id}>
+                  <div className="product-image" style={{ position: "relative" }}>
+                    <img src={product.image_url} alt={product.name} />
+                    <span>{product.category}</span>
+                    {/* Badges góc trên */}
+                    <div style={{ position: "absolute", top: 8, left: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                      {hot && (
+                        <span style={{
+                          background: "linear-gradient(135deg,#e65100,#ff6d00)",
+                          color: "#fff", fontSize: 11, fontWeight: 800,
+                          padding: "3px 9px", borderRadius: 20,
+                          boxShadow: "0 2px 8px rgba(230,81,0,0.4)",
+                          letterSpacing: 0.3,
+                        }}>🔥 Bán chạy</span>
+                      )}
+                      {hasDiscount && (
+                        <span style={{
+                          background: "linear-gradient(135deg,#c62828,#e53935)",
+                          color: "#fff", fontSize: 11, fontWeight: 800,
+                          padding: "3px 9px", borderRadius: 20,
+                          boxShadow: "0 2px 8px rgba(198,40,40,0.4)",
+                        }}>
+                          {discPct > 0 ? `−${discPct}%` : `−${Number(discAmt).toLocaleString("vi-VN")}đ`}
+                        </span>
+                      )}
+                    </div>
+                    {/* Hết hàng overlay */}
+                    {outOfStock && (
+                      <div style={{
+                        position: "absolute", inset: 0,
+                        background: "rgba(0,0,0,0.45)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        borderRadius: "inherit",
+                      }}>
+                        <span style={{ color: "#fff", fontWeight: 800, fontSize: 14, background: "rgba(0,0,0,0.6)", padding: "6px 16px", borderRadius: 20 }}>
+                          Hết hàng
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <div className="product-footer">
-                    <strong>{formatPrice(product.price)}</strong>
-                    <button onClick={() => setSelectedProduct(product)}>Xem chi tiết</button>
+                  <div className="product-body">
+                    <h3>{product.name}</h3>
+                    <p>{product.description}</p>
+                    <div className="product-meta">
+                      <span>{product.weight}</span>
+                      <span>{product.origin}</span>
+                    </div>
+                    {/* Tồn kho */}
+                    {!outOfStock && stock < 999 && (
+                      <div style={{ marginBottom: 6 }}>
+                        <span style={{
+                          fontSize: 12, fontWeight: 600,
+                          color: lowStock ? "#c62828" : "#555",
+                          background: lowStock ? "#ffebee" : "#f5f5f5",
+                          padding: "2px 8px", borderRadius: 6,
+                        }}>
+                          {lowStock ? `⚠️ Còn ${stock} sản phẩm` : `📦 Còn ${stock} sản phẩm`}
+                        </span>
+                      </div>
+                    )}
+                    <div className="product-footer">
+                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        {hasDiscount && (
+                          <span style={{ fontSize: 12, color: "#999", textDecoration: "line-through" }}>
+                            {formatPrice(product.price)}
+                          </span>
+                        )}
+                        <strong style={{ color: hasDiscount ? "#c62828" : undefined }}>
+                          {hasDiscount ? formatPrice(salePrice) : formatPrice(product.price)}
+                        </strong>
+                      </div>
+                      <button onClick={() => setSelectedProduct(product)}>Xem chi tiết</button>
+                    </div>
+                    <button
+                      className="add-cart"
+                      disabled={outOfStock}
+                      style={outOfStock ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+                      onClick={() => !outOfStock && addToCart(product)}
+                    >
+                      {outOfStock ? "Hết hàng" : "Thêm vào giỏ hàng"}
+                    </button>
                   </div>
-                  <button className="add-cart" onClick={() => addToCart(product)}>Thêm vào giỏ hàng</button>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
         </section>
 
@@ -587,20 +672,59 @@ function Storefront() {
             <p>Khu vực hộp quà được tách riêng để khách dễ chọn sản phẩm biếu Tết, biếu thầy cô, đối tác, người thân hoặc khách hàng.</p>
           </div>
           <div className="gift-grid">
-            {giftProducts.length > 0 ? giftProducts.map(product => (
-              <article className="gift-card" key={product.id}>
-                <img src={product.image_url} alt={product.name} />
-                <div>
-                  <h3>{product.name}</h3>
-                  <p>{product.description}</p>
-                  <strong>{formatPrice(product.price)}</strong>
-                  <div className="gift-actions">
-                    <button onClick={() => setSelectedProduct(product)}>Xem chi tiết</button>
-                    <button onClick={() => addToCart(product)}>Thêm vào giỏ</button>
+            {giftProducts.length > 0 ? giftProducts.map(product => {
+              const discPct = Number(product.discount_percent || 0);
+              const discAmt = Number(product.discount_amount  || 0);
+              const hasDiscount = discPct > 0 || discAmt > 0;
+              const salePrice = calcSalePrice(product.price, discPct, discAmt);
+              const hot = isHotProduct(product);
+              const stock = Number(product.stock ?? 999);
+              const outOfStock = stock === 0;
+
+              return (
+                <article className="gift-card" key={product.id} style={{ position: "relative" }}>
+                  {/* Badges */}
+                  <div style={{ position: "absolute", top: 10, left: 10, display: "flex", flexDirection: "column", gap: 4, zIndex: 2 }}>
+                    {hot && (
+                      <span style={{ background: "linear-gradient(135deg,#e65100,#ff6d00)", color: "#fff", fontSize: 11, fontWeight: 800, padding: "3px 9px", borderRadius: 20 }}>
+                        🔥 Bán chạy
+                      </span>
+                    )}
+                    {hasDiscount && (
+                      <span style={{ background: "linear-gradient(135deg,#c62828,#e53935)", color: "#fff", fontSize: 11, fontWeight: 800, padding: "3px 9px", borderRadius: 20 }}>
+                        {discPct > 0 ? `−${discPct}%` : `−${Number(discAmt).toLocaleString("vi-VN")}đ`}
+                      </span>
+                    )}
                   </div>
-                </div>
-              </article>
-            )) : <p>Chưa có sản phẩm hộp quà.</p>}
+                  <img src={product.image_url} alt={product.name} />
+                  <div>
+                    <h3>{product.name}</h3>
+                    <p>{product.description}</p>
+                    {hasDiscount ? (
+                      <div>
+                        <span style={{ fontSize: 13, color: "#999", textDecoration: "line-through" }}>{formatPrice(product.price)}</span>
+                        <strong style={{ marginLeft: 8, color: "#c62828" }}>{formatPrice(salePrice)}</strong>
+                      </div>
+                    ) : (
+                      <strong>{formatPrice(product.price)}</strong>
+                    )}
+                    {stock < 999 && stock > 0 && stock < 10 && (
+                      <div style={{ fontSize: 12, color: "#c62828", marginTop: 4 }}>⚠️ Còn {stock} sản phẩm</div>
+                    )}
+                    <div className="gift-actions">
+                      <button onClick={() => setSelectedProduct(product)}>Xem chi tiết</button>
+                      <button
+                        disabled={outOfStock}
+                        style={outOfStock ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+                        onClick={() => !outOfStock && addToCart(product)}
+                      >
+                        {outOfStock ? "Hết hàng" : "Thêm vào giỏ"}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            }) : <p>Chưa có sản phẩm hộp quà.</p>}
           </div>
         </section>
 
@@ -746,7 +870,35 @@ function Storefront() {
               <div>
                 <span className="detail-tag">{selectedProduct.category}</span>
                 <h2>{selectedProduct.name}</h2>
-                <h3>{formatPrice(selectedProduct.price)}</h3>
+                {(() => {
+                  const discPct = Number(selectedProduct.discount_percent || 0);
+                  const discAmt = Number(selectedProduct.discount_amount  || 0);
+                  const hasDiscount = discPct > 0 || discAmt > 0;
+                  const salePrice = calcSalePrice(selectedProduct.price, discPct, discAmt);
+                  const stock = Number(selectedProduct.stock ?? 999);
+                  const hot = isHotProduct(selectedProduct);
+                  return (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                        {hot && <span style={{ background: "#fff3e0", color: "#e65100", fontWeight: 800, fontSize: 12, padding: "3px 10px", borderRadius: 20 }}>🔥 Bán chạy</span>}
+                        {hasDiscount && <span style={{ background: "#ffebee", color: "#c62828", fontWeight: 800, fontSize: 12, padding: "3px 10px", borderRadius: 20 }}>🏷️ Đang giảm giá</span>}
+                      </div>
+                      {hasDiscount ? (
+                        <div>
+                          <span style={{ fontSize: 14, color: "#aaa", textDecoration: "line-through" }}>{formatPrice(selectedProduct.price)}</span>
+                          <h3 style={{ margin: "4px 0", color: "#c62828" }}>{formatPrice(salePrice)}</h3>
+                        </div>
+                      ) : (
+                        <h3>{formatPrice(selectedProduct.price)}</h3>
+                      )}
+                      {stock < 999 && (
+                        <div style={{ fontSize: 13, color: stock === 0 ? "#e53935" : stock < 10 ? "#c62828" : "#555", marginTop: 4 }}>
+                          {stock === 0 ? "❌ Hết hàng" : stock < 10 ? `⚠️ Còn ${stock} sản phẩm` : `📦 Còn ${stock} sản phẩm`}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <p>{selectedProduct.description}</p>
                 <ul className="detail-list">
                   <li><strong>Khối lượng:</strong> {selectedProduct.weight}</li>

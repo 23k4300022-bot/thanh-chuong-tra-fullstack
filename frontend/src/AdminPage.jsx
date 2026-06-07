@@ -49,10 +49,18 @@ const formatDate = (value) => {
 
 const normalize = (value) => String(value ?? "").trim().toLowerCase();
 
+// Tính giá sau giảm
+function calcSalePrice(price, discountPercent, discountAmount) {
+  let p = Number(price || 0);
+  if (discountPercent > 0) p = p * (1 - discountPercent / 100);
+  else if (discountAmount > 0) p = p - discountAmount;
+  return Math.max(0, Math.round(p));
+}
+
 // ===================== BIỂU ĐỒ DOANH THU =====================
 
 function RevenueChart({ orders }) {
-  const [viewMode, setViewMode] = useState("month"); // "month" | "year"
+  const [viewMode, setViewMode] = useState("month");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const paidOrders = orders.filter((o) =>
@@ -167,10 +175,7 @@ function RevenueChart({ orders }) {
             <div key={item.label} className="bar-col">
               <div className="bar-tooltip">{formatMoney(item.revenue)}</div>
               <div className="bar-track">
-                <div
-                  className="bar-fill"
-                  style={{ height: `${pct}%` }}
-                />
+                <div className="bar-fill" style={{ height: `${pct}%` }} />
               </div>
               <div className="bar-label">{item.label}</div>
             </div>
@@ -181,19 +186,16 @@ function RevenueChart({ orders }) {
   );
 }
 
-// ===================== TOP SẢN PHẨM =====================
+// ===================== TOP SẢN PHẨM BÁN CHẠY =====================
 
 function TopProducts({ orders, products }) {
-  const productMap = useMemo(() => {
-    const map = {};
-    products.forEach((p) => {
-      map[p.id] = p.name;
-    });
-    return map;
+  // Sắp xếp sản phẩm theo sold_count giảm dần
+  const topSelling = useMemo(() => {
+    return [...products]
+      .sort((a, b) => Number(b.sold_count || 0) - Number(a.sold_count || 0))
+      .slice(0, 5);
   }, [products]);
 
-  // Đếm từ order items — dùng tổng tiền vì không có order_items trực tiếp
-  // Thay vào đó hiển thị đơn hàng gần đây
   const recentOrders = useMemo(() => {
     return [...orders]
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
@@ -201,26 +203,53 @@ function TopProducts({ orders, products }) {
   }, [orders]);
 
   return (
-    <div className="recent-orders-card">
-      <h2>Đơn hàng gần đây</h2>
-      <div className="recent-orders-list">
-        {recentOrders.length === 0 && (
-          <p className="admin-empty">Chưa có đơn hàng nào.</p>
-        )}
-        {recentOrders.map((order) => (
-          <div key={order.id} className="recent-order-row">
-            <div className="recent-order-info">
-              <strong>#{order.id} — {order.customer_name}</strong>
-              <span>{formatDate(order.created_at)}</span>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+      {/* Top bán chạy */}
+      <div className="recent-orders-card">
+        <h2>🔥 Sản phẩm bán chạy</h2>
+        <div className="recent-orders-list">
+          {topSelling.length === 0 && (
+            <p className="admin-empty">Chưa có dữ liệu bán hàng.</p>
+          )}
+          {topSelling.map((p, i) => (
+            <div key={p.id} className="recent-order-row">
+              <div className="recent-order-info">
+                <strong>#{i + 1} — {p.name}</strong>
+                <span>{p.category} · {p.weight}</span>
+              </div>
+              <div className="recent-order-right">
+                <span className="admin-status is-paid">
+                  {Number(p.sold_count || 0)} đã bán
+                </span>
+                <strong>{formatMoney(p.price)}</strong>
+              </div>
             </div>
-            <div className="recent-order-right">
-              <span className={`admin-status ${getOrderStatusClass(order.payment_status)}`}>
-                {order.payment_status}
-              </span>
-              <strong>{formatMoney(order.total_amount)}</strong>
+          ))}
+        </div>
+      </div>
+
+      {/* Đơn hàng gần đây */}
+      <div className="recent-orders-card">
+        <h2>Đơn hàng gần đây</h2>
+        <div className="recent-orders-list">
+          {recentOrders.length === 0 && (
+            <p className="admin-empty">Chưa có đơn hàng nào.</p>
+          )}
+          {recentOrders.map((order) => (
+            <div key={order.id} className="recent-order-row">
+              <div className="recent-order-info">
+                <strong>#{order.id} — {order.customer_name}</strong>
+                <span>{formatDate(order.created_at)}</span>
+              </div>
+              <div className="recent-order-right">
+                <span className={`admin-status ${getOrderStatusClass(order.payment_status)}`}>
+                  {order.payment_status}
+                </span>
+                <strong>{formatMoney(order.total_amount)}</strong>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -233,6 +262,182 @@ function getOrderStatusClass(status) {
   if (normalized.includes("chờ")) return "is-pending";
   return "is-cod";
 }
+
+// ===================== MODAL SỬA SẢN PHẨM =====================
+
+function ProductEditModal({ product, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    discount_percent: Number(product.discount_percent || 0),
+    discount_amount:  Number(product.discount_amount  || 0),
+    stock:            Number(product.stock     ?? 999),
+    sold_count:       Number(product.sold_count || 0),
+    is_hot:           Boolean(product.is_hot),
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const salePrice = calcSalePrice(product.price, form.discount_percent, form.discount_amount);
+  const hasDiscount = form.discount_percent > 0 || form.discount_amount > 0;
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_URL}/api/products/${product.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          discount_percent: Number(form.discount_percent),
+          discount_amount:  Number(form.discount_amount),
+          stock:            Number(form.stock),
+          sold_count:       Number(form.sold_count),
+          is_hot:           Boolean(form.is_hot),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Lỗi cập nhật");
+      onSaved(data);
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
+        zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 16, padding: 28,
+          width: "100%", maxWidth: 480, boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h2 style={{ margin: 0, color: "#174421", fontSize: 18 }}>
+            ✏️ Chỉnh sản phẩm
+          </h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#888" }}>×</button>
+        </div>
+
+        <div style={{ marginBottom: 16, padding: "12px 16px", background: "#f8fdf5", borderRadius: 10, borderLeft: "4px solid #2d8a45" }}>
+          <div style={{ fontWeight: 700, color: "#174421" }}>{product.name}</div>
+          <div style={{ fontSize: 13, color: "#666", marginTop: 4 }}>
+            Giá gốc: <strong>{formatMoney(product.price)}</strong>
+            {hasDiscount && (
+              <span style={{ marginLeft: 10, color: "#d32f2f", fontWeight: 700 }}>
+                → Giá bán: {formatMoney(salePrice)}
+                {form.discount_percent > 0 && ` (−${form.discount_percent}%)`}
+                {form.discount_amount > 0 && !form.discount_percent && ` (−${formatMoney(form.discount_amount)})`}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+          <label style={labelStyle}>
+            <span>Giảm giá (%)</span>
+            <input
+              type="number" min="0" max="99" step="0.5"
+              value={form.discount_percent}
+              onChange={(e) => setForm({ ...form, discount_percent: Number(e.target.value), discount_amount: 0 })}
+              style={inputStyle}
+              placeholder="vd: 10 = giảm 10%"
+            />
+            <small style={{ color: "#888", fontSize: 11 }}>Nhập % hoặc số tiền, không dùng cả 2</small>
+          </label>
+
+          <label style={labelStyle}>
+            <span>Giảm giá (đ)</span>
+            <input
+              type="number" min="0" step="1000"
+              value={form.discount_amount}
+              onChange={(e) => setForm({ ...form, discount_amount: Number(e.target.value), discount_percent: 0 })}
+              style={inputStyle}
+              placeholder="vd: 20000"
+            />
+            <small style={{ color: "#888", fontSize: 11 }}>Nhập số tiền giảm trực tiếp</small>
+          </label>
+
+          <label style={labelStyle}>
+            <span>Tồn kho (số lượng)</span>
+            <input
+              type="number" min="0"
+              value={form.stock}
+              onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })}
+              style={inputStyle}
+              placeholder="999 = không giới hạn"
+            />
+            <small style={{ color: "#888", fontSize: 11 }}>999 = không giới hạn tồn kho</small>
+          </label>
+
+          <label style={labelStyle}>
+            <span>Đã bán (sold_count)</span>
+            <input
+              type="number" min="0"
+              value={form.sold_count}
+              onChange={(e) => setForm({ ...form, sold_count: Number(e.target.value) })}
+              style={inputStyle}
+            />
+            <small style={{ color: "#888", fontSize: 11 }}>Tự động tăng khi có đơn mới</small>
+          </label>
+        </div>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 20, padding: "12px 16px", background: "#fff8e1", borderRadius: 10, border: "1px solid #ffe082" }}>
+          <input
+            type="checkbox"
+            checked={form.is_hot}
+            onChange={(e) => setForm({ ...form, is_hot: e.target.checked })}
+            style={{ width: 18, height: 18, accentColor: "#e65100" }}
+          />
+          <div>
+            <div style={{ fontWeight: 700, color: "#e65100" }}>🔥 Đánh dấu bán chạy</div>
+            <div style={{ fontSize: 12, color: "#888" }}>
+              Sản phẩm sẽ hiển thị badge "Bán chạy" trên website.
+              {Number(product.sold_count || 0) >= 10 && " (Đang tự động bán chạy theo dữ liệu)"}
+            </div>
+          </div>
+        </label>
+
+        {error && (
+          <div style={{ padding: "10px 14px", background: "#ffebee", borderRadius: 8, color: "#c62828", fontSize: 13, marginBottom: 14 }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #ddd", background: "#f5f5f5", cursor: "pointer", fontWeight: 600 }}>
+            Hủy
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{ padding: "10px 24px", borderRadius: 8, border: "none", background: saving ? "#aaa" : "#1f7a36", color: "#fff", cursor: saving ? "not-allowed" : "pointer", fontWeight: 700 }}
+          >
+            {saving ? "⏳ Đang lưu..." : "💾 Lưu thay đổi"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const labelStyle = {
+  display: "flex", flexDirection: "column", gap: 4,
+  fontSize: 13, fontWeight: 600, color: "#333",
+};
+const inputStyle = {
+  padding: "9px 12px", borderRadius: 8, border: "1px solid #ddd",
+  fontSize: 14, outline: "none",
+};
 
 // ===================== TRANG CHÍNH =====================
 
@@ -252,6 +457,8 @@ function AdminPage() {
   const [errors, setErrors] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [productFilter, setProductFilter] = useState("all"); // all | hot | discount | low_stock
 
   const fetchAdminData = async () => {
     setLoading(true);
@@ -308,7 +515,6 @@ function AdminPage() {
     [paidOrders]
   );
 
-  // Doanh thu tháng này
   const thisMonthRevenue = useMemo(() => {
     const now = new Date();
     return paidOrders
@@ -319,7 +525,6 @@ function AdminPage() {
       .reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
   }, [paidOrders]);
 
-  // Doanh thu tháng trước
   const lastMonthRevenue = useMemo(() => {
     const now = new Date();
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -356,10 +561,17 @@ function AdminPage() {
 
   const filteredProducts = useMemo(() => {
     const search = normalize(searchTerm);
-    return products.filter((p) =>
-      !search ? true : [p.id, p.name, p.category, p.weight, p.origin].some((v) => normalize(v).includes(search))
-    );
-  }, [products, searchTerm]);
+    return products
+      .filter((p) => {
+        if (productFilter === "hot") return p.is_hot || Number(p.sold_count || 0) >= 10;
+        if (productFilter === "discount") return Number(p.discount_percent || 0) > 0 || Number(p.discount_amount || 0) > 0;
+        if (productFilter === "low_stock") return Number(p.stock ?? 999) < 10;
+        return true;
+      })
+      .filter((p) =>
+        !search ? true : [p.id, p.name, p.category, p.weight, p.origin].some((v) => normalize(v).includes(search))
+      );
+  }, [products, searchTerm, productFilter]);
 
   const filteredContacts = useMemo(() => {
     const search = normalize(searchTerm);
@@ -391,8 +603,12 @@ function AdminPage() {
       ]);
     } else if (activeTab === "products") {
       downloadCsv("san-pham-thanh-chuong-tra.csv", [
-        ["ID", "Tên sản phẩm", "Danh mục", "Khối lượng", "Giá", "Xuất xứ"],
-        ...filteredProducts.map((p) => [p.id, p.name, p.category, p.weight, p.price, p.origin]),
+        ["ID", "Tên sản phẩm", "Danh mục", "Khối lượng", "Giá gốc", "Giảm %", "Giảm đ", "Tồn kho", "Đã bán", "Bán chạy", "Xuất xứ"],
+        ...filteredProducts.map((p) => [
+          p.id, p.name, p.category, p.weight, p.price,
+          p.discount_percent || 0, p.discount_amount || 0,
+          p.stock ?? 999, p.sold_count || 0, p.is_hot ? "Có" : "Không", p.origin,
+        ]),
       ]);
     } else if (activeTab === "contacts") {
       downloadCsv("lien-he-thanh-chuong-tra.csv", [
@@ -405,6 +621,10 @@ function AdminPage() {
         ...filteredChatMessages.map((m) => [m.id, m.customer_name, m.customer_email, m.user_message, m.bot_reply, formatDate(m.created_at)]),
       ]);
     }
+  };
+
+  const handleProductSaved = (updatedProduct) => {
+    setProducts((prev) => prev.map((p) => p.id === updatedProduct.id ? updatedProduct : p));
   };
 
   if (!isLoggedIn) {
@@ -433,9 +653,13 @@ function AdminPage() {
     { key: "chat", label: "Chatbot", icon: "💬" },
   ];
 
+  // Thống kê nhanh sản phẩm cho dashboard
+  const hotCount = products.filter(p => p.is_hot || Number(p.sold_count || 0) >= 10).length;
+  const discountCount = products.filter(p => Number(p.discount_percent || 0) > 0 || Number(p.discount_amount || 0) > 0).length;
+  const lowStockCount = products.filter(p => Number(p.stock ?? 999) < 10).length;
+
   return (
     <div className="admin-page">
-      {/* Overlay mobile */}
       {sidebarOpen && (
         <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
       )}
@@ -519,25 +743,25 @@ function AdminPage() {
                   </div>
                 )}
               </div>
-              <div className="stat-card">
-                <div className="stat-icon">✉️</div>
-                <span>Liên hệ</span>
-                <strong>{contacts.length}</strong>
+              <div className="stat-card" style={{ cursor: "pointer" }} onClick={() => { setActiveTab("products"); setProductFilter("hot"); }}>
+                <div className="stat-icon">🔥</div>
+                <span>Bán chạy</span>
+                <strong>{hotCount}</strong>
               </div>
-              <div className="stat-card">
-                <div className="stat-icon">💬</div>
-                <span>Tin nhắn chatbot</span>
-                <strong>{chatMessages.length}</strong>
+              <div className="stat-card" style={{ cursor: "pointer", borderTop: lowStockCount > 0 ? "3px solid #e53935" : undefined }}
+                onClick={() => { setActiveTab("products"); setProductFilter("low_stock"); }}>
+                <div className="stat-icon">📦</div>
+                <span>Sắp hết hàng</span>
+                <strong style={{ color: lowStockCount > 0 ? "#e53935" : undefined }}>{lowStockCount}</strong>
               </div>
             </section>
 
             <RevenueChart orders={orders} />
-
             <TopProducts orders={orders} products={products} />
           </>
         )}
 
-        {/* ORDERS, PRODUCTS, CONTACTS, CHAT */}
+        {/* ORDERS / PRODUCTS / CONTACTS / CHAT */}
         {activeTab !== "dashboard" && (
           <section className="admin-panel">
             <div className="admin-panel-head">
@@ -563,6 +787,14 @@ function AdminPage() {
                   <option value="unpaid">Chưa thanh toán</option>
                   <option value="cod">COD</option>
                   <option value="vnpay">VNPay</option>
+                </select>
+              )}
+              {activeTab === "products" && (
+                <select value={productFilter} onChange={(e) => setProductFilter(e.target.value)}>
+                  <option value="all">Tất cả sản phẩm</option>
+                  <option value="hot">🔥 Bán chạy</option>
+                  <option value="discount">🏷️ Đang giảm giá</option>
+                  <option value="low_stock">📦 Sắp hết hàng (&lt;10)</option>
                 </select>
               )}
             </div>
@@ -604,26 +836,130 @@ function AdminPage() {
             )}
 
             {activeTab === "products" && (
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead>
-                    <tr><th>ID</th><th>Sản phẩm</th><th>Danh mục</th><th>Khối lượng</th><th>Giá</th><th>Xuất xứ</th></tr>
-                  </thead>
-                  <tbody>
-                    {filteredProducts.map((p) => (
-                      <tr key={p.id}>
-                        <td>{p.id}</td>
-                        <td><strong>{p.name}</strong></td>
-                        <td>{p.category}</td>
-                        <td>{p.weight}</td>
-                        <td>{formatMoney(p.price)}</td>
-                        <td>{p.origin}</td>
+              <>
+                {/* Thống kê nhanh sản phẩm */}
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                  {[
+                    { label: "🔥 Bán chạy", value: hotCount, color: "#e65100", bg: "#fff3e0" },
+                    { label: "🏷️ Đang giảm giá", value: discountCount, color: "#1565c0", bg: "#e3f2fd" },
+                    { label: "📦 Sắp hết hàng", value: lowStockCount, color: lowStockCount > 0 ? "#c62828" : "#388e3c", bg: lowStockCount > 0 ? "#ffebee" : "#e8f5e9" },
+                    { label: "📦 Tổng tồn kho", value: products.reduce((s, p) => s + (Number(p.stock ?? 999) < 999 ? Number(p.stock) : 0), 0) + (products.filter(p => (p.stock ?? 999) >= 999).length > 0 ? "+" : ""), color: "#2e7d32", bg: "#f1f8f4" },
+                  ].map((item) => (
+                    <div key={item.label} style={{ padding: "10px 18px", background: item.bg, borderRadius: 10, fontSize: 13, fontWeight: 700, color: item.color, whiteSpace: "nowrap" }}>
+                      {item.label}: {item.value}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Sản phẩm</th>
+                        <th>Danh mục</th>
+                        <th>Giá gốc</th>
+                        <th>Giảm giá</th>
+                        <th>Giá bán</th>
+                        <th>Tồn kho</th>
+                        <th>Đã bán</th>
+                        <th>Trạng thái</th>
+                        <th>Hành động</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {!loading && filteredProducts.length === 0 && <p className="admin-empty">Không có sản phẩm phù hợp.</p>}
-              </div>
+                    </thead>
+                    <tbody>
+                      {filteredProducts.map((p) => {
+                        const discPct = Number(p.discount_percent || 0);
+                        const discAmt = Number(p.discount_amount  || 0);
+                        const hasDisc = discPct > 0 || discAmt > 0;
+                        const salePrice = calcSalePrice(p.price, discPct, discAmt);
+                        const stock = Number(p.stock ?? 999);
+                        const soldCount = Number(p.sold_count || 0);
+                        const isHot = p.is_hot || soldCount >= 10;
+                        const isLowStock = stock < 10;
+
+                        return (
+                          <tr key={p.id}>
+                            <td>{p.id}</td>
+                            <td>
+                              <strong>{p.name}</strong>
+                              <small>{p.weight}</small>
+                            </td>
+                            <td>{p.category}</td>
+                            <td>
+                              {hasDisc
+                                ? <span style={{ textDecoration: "line-through", color: "#999", fontSize: 12 }}>{formatMoney(p.price)}</span>
+                                : formatMoney(p.price)
+                              }
+                            </td>
+                            <td>
+                              {discPct > 0 && (
+                                <span style={{ background: "#ffebee", color: "#c62828", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
+                                  −{discPct}%
+                                </span>
+                              )}
+                              {discAmt > 0 && !discPct && (
+                                <span style={{ background: "#ffebee", color: "#c62828", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
+                                  −{formatMoney(discAmt)}
+                                </span>
+                              )}
+                              {!hasDisc && <span style={{ color: "#bbb" }}>—</span>}
+                            </td>
+                            <td>
+                              {hasDisc
+                                ? <strong style={{ color: "#1f7a36" }}>{formatMoney(salePrice)}</strong>
+                                : <span style={{ color: "#888" }}>{formatMoney(p.price)}</span>
+                              }
+                            </td>
+                            <td>
+                              <span style={{
+                                fontWeight: 700,
+                                color: isLowStock ? "#c62828" : "#2e7d32",
+                              }}>
+                                {stock >= 999 ? "∞" : stock}
+                              </span>
+                              {isLowStock && <small style={{ color: "#e53935", display: "block" }}>Sắp hết!</small>}
+                            </td>
+                            <td>
+                              <span style={{ fontWeight: 700, color: "#1565c0" }}>{soldCount}</span>
+                            </td>
+                            <td>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                {isHot && (
+                                  <span style={{ background: "#fff3e0", color: "#e65100", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                                    🔥 Bán chạy
+                                  </span>
+                                )}
+                                {hasDisc && (
+                                  <span style={{ background: "#e3f2fd", color: "#1565c0", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                                    🏷️ Giảm giá
+                                  </span>
+                                )}
+                                {!isHot && !hasDisc && (
+                                  <span style={{ color: "#bbb", fontSize: 12 }}>Thường</span>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              <button
+                                onClick={() => setEditingProduct(p)}
+                                style={{
+                                  padding: "6px 14px", borderRadius: 8, border: "none",
+                                  background: "#e8f5e9", color: "#1f7a36", fontWeight: 700,
+                                  cursor: "pointer", fontSize: 13, whiteSpace: "nowrap",
+                                }}
+                              >
+                                ✏️ Sửa
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {!loading && filteredProducts.length === 0 && <p className="admin-empty">Không có sản phẩm phù hợp.</p>}
+                </div>
+              </>
             )}
 
             {activeTab === "contacts" && (
@@ -666,6 +1002,15 @@ function AdminPage() {
           </section>
         )}
       </main>
+
+      {/* Modal sửa sản phẩm */}
+      {editingProduct && (
+        <ProductEditModal
+          product={editingProduct}
+          onClose={() => setEditingProduct(null)}
+          onSaved={handleProductSaved}
+        />
+      )}
     </div>
   );
 }

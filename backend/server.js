@@ -323,6 +323,58 @@ app.get("/api/products/:id", async (req, res) => {
   }
 });
 
+// ── ĐOẠN 1: PUT /api/products/:id ──────────────────────────
+app.put("/api/products/:id", async (req, res) => {
+  try {
+    const {
+      name, description, price, weight, category, origin,
+      flavor, image_url, tea_type, water_color, brewing_guide,
+      storage_guide, discount_percent, discount_amount,
+      stock, sold_count, is_hot,
+    } = req.body;
+
+    const result = await poolPromise.query(
+      `UPDATE products SET
+        name            = COALESCE($1,  name),
+        description     = COALESCE($2,  description),
+        price           = COALESCE($3,  price),
+        weight          = COALESCE($4,  weight),
+        category        = COALESCE($5,  category),
+        origin          = COALESCE($6,  origin),
+        flavor          = COALESCE($7,  flavor),
+        image_url       = COALESCE($8,  image_url),
+        tea_type        = COALESCE($9,  tea_type),
+        water_color     = COALESCE($10, water_color),
+        brewing_guide   = COALESCE($11, brewing_guide),
+        storage_guide   = COALESCE($12, storage_guide),
+        discount_percent= COALESCE($13, discount_percent),
+        discount_amount = COALESCE($14, discount_amount),
+        stock           = COALESCE($15, stock),
+        sold_count      = COALESCE($16, sold_count),
+        is_hot          = COALESCE($17, is_hot)
+       WHERE id = $18
+       RETURNING *`,
+      [
+        name, description, price != null ? Number(price) : null,
+        weight, category, origin, flavor, image_url, tea_type,
+        water_color, brewing_guide, storage_guide,
+        discount_percent != null ? Number(discount_percent) : null,
+        discount_amount  != null ? Number(discount_amount)  : null,
+        stock     != null ? Number(stock)     : null,
+        sold_count != null ? Number(sold_count) : null,
+        is_hot != null ? Boolean(is_hot) : null,
+        req.params.id,
+      ]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Lỗi cập nhật sản phẩm:", error);
+    res.status(500).json({ message: "Lỗi cập nhật sản phẩm", error: error.message });
+  }
+});
+
 /* ===================== CONTACTS ===================== */
 
 app.post("/api/contacts", async (req, res) => {
@@ -395,6 +447,17 @@ app.post("/api/orders", async (req, res) => {
       await client.query(
         `INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)`,
         [orderId, item.product_id, item.quantity, item.price]
+      );
+    }
+
+    // ── ĐOẠN 2: Tăng sold_count và giảm stock ──────────────
+    for (const item of items) {
+      await client.query(
+        `UPDATE products
+         SET sold_count = sold_count + $1,
+             stock      = GREATEST(stock - $1, 0)
+         WHERE id = $2`,
+        [Number(item.quantity), item.product_id]
       );
     }
 
@@ -480,6 +543,17 @@ app.post("/api/create-vnpay-payment", async (req, res) => {
       await client.query(
         `INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)`,
         [orderId, item.product_id, item.quantity, item.price]
+      );
+    }
+
+    // ── ĐOẠN 3: Tăng sold_count và giảm stock ──────────────
+    for (const item of items) {
+      await client.query(
+        `UPDATE products
+         SET sold_count = sold_count + $1,
+             stock      = GREATEST(stock - $1, 0)
+         WHERE id = $2`,
+        [Number(item.quantity), item.product_id]
       );
     }
 
@@ -676,11 +750,12 @@ app.post("/api/sepay-webhook", async (req, res) => {
     }
 
     let matchedOrder = null;
-// ✅ Match cả TCT#143 lẫn TCT143 (VietQR tự bỏ dấu #)
-const orderIdMatch =
-  (content || "").match(/TCT#?(\d+)/i) ||
-  (description || "").match(/TCT#?(\d+)/i);
-    
+
+    // ✅ Bước 1: Match chính xác theo TCT#id trong nội dung CK
+    const orderIdMatch =
+      (content || "").match(/TCT#(\d+)/i) ||
+      (description || "").match(/TCT#(\d+)/i);
+
     if (orderIdMatch) {
       const exactId = Number(orderIdMatch[1]);
       const exactResult = await poolPromise.query(
@@ -701,7 +776,6 @@ const orderIdMatch =
     }
 
     // ✅ Bước 2: Fallback — match SĐT + số tiền CHÍNH XÁC + đơn tạo trong 24h gần nhất
-    // Điều kiện thời gian loại bỏ các giao dịch cũ như 2.000đ test trước đó
     if (!matchedOrder) {
       const fullText = (content || "").toLowerCase() + " " + (description || "").toLowerCase();
 
@@ -717,7 +791,6 @@ const orderIdMatch =
 
       for (const order of pendingOrders.rows) {
         const phone = (order.phone || "").replace(/\D/g, "");
-        // ✅ Số tiền phải khớp CHÍNH XÁC (sai không quá 1đ) — tránh nhầm giao dịch test 2.000đ
         const amountMatch = Number(transferAmount) === Number(order.total_amount);
         const phoneMatch = phone && fullText.includes(phone.slice(-9));
 
