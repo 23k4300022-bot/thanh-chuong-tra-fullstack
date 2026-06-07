@@ -219,25 +219,25 @@ const STYLES = `
 }
 .co-bank-note strong { color:#e65100; }
 
-/* VNPAY BOX */
-.co-vnpay-box {
-  margin-top:16px; border-radius:18px; overflow:hidden;
-  border:1px solid #e1bee7; box-shadow:0 4px 20px rgba(106,27,154,.08);
+/* QR BOX */
+.co-qr-wrap {
+  background:#fff; border:1px solid #dce8f5; border-radius:14px;
+  padding:16px; display:flex; flex-direction:column; align-items:center; gap:10px;
 }
-.co-vnpay-header {
-  background:linear-gradient(135deg,#6a1b9a,#8e24aa);
-  color:#fff; padding:14px 18px; display:flex; align-items:center; gap:12px;
+.co-qr-label {
+  font-size:11px; font-weight:700; color:#1565c0; text-align:center;
+  text-transform:uppercase; letter-spacing:.06em;
 }
-.co-vnpay-header h4 { margin:0; font-size:14px; font-weight:800; }
-.co-vnpay-header p  { margin:0; font-size:11px; opacity:.8; margin-top:2px; }
-.co-vnpay-body { padding:20px; text-align:center; background:#fdf7ff; }
-.co-vnpay-logo { font-size:44px; margin-bottom:10px; }
-.co-vnpay-body p { font-size:13px; color:#666; line-height:1.65; margin:0; }
-.sandbox-badge {
-  display:inline-block; margin-top:10px;
-  background:#fff3e0; border:1px solid #ffb74d;
-  border-radius:99px; padding:4px 14px;
-  font-size:11px; font-weight:700; color:#e65100;
+.co-qr-img {
+  width:180px; height:180px; border-radius:12px;
+  border:3px solid #e3f2fd; display:block;
+  box-shadow: 0 4px 16px rgba(21,101,192,.12);
+}
+.co-qr-hint {
+  font-size:11px; color:#888; text-align:center; line-height:1.6; margin:0;
+}
+.co-qr-amount {
+  font-size:18px; font-weight:900; color:#1565c0; letter-spacing:-.01em;
 }
 
 /* MOMO BOX */
@@ -327,8 +327,6 @@ const STYLES = `
 }
 .co-submit:hover { background:linear-gradient(135deg,#145724,#1d7a3a); transform:translateY(-1px); box-shadow:0 10px 28px rgba(26,107,46,.35); }
 .co-submit:active { transform:translateY(0); }
-.co-submit.vnpay  { background:linear-gradient(135deg,#5a1585,#7b1fa2); box-shadow:0 6px 24px rgba(90,21,133,.3); }
-.co-submit.vnpay:hover  { background:linear-gradient(135deg,#4a1170,#6a1b9a); }
 .co-submit.bank   { background:linear-gradient(135deg,#0d47a1,#1565c0); box-shadow:0 6px 24px rgba(13,71,161,.3); }
 .co-submit.bank:hover   { background:linear-gradient(135deg,#0a3880,#0d47a1); }
 
@@ -416,12 +414,13 @@ const BANK_INFO = {
   stk: "5180971464",
   bank: "BIDV",
   owner: "NGUYEN HONG TRUONG",
+  // Mã ngân hàng Napas của BIDV dùng cho VietQR
+  bin: "970418",
 };
 
 const PAY_OPTS = [
   { id:"COD",               label:"Tiền mặt (COD)",  icon:"💵", sub:"Thanh toán khi nhận hàng" },
-  { id:"Chuyển khoản test", label:"Chuyển khoản",    icon:"🏦", sub:"BIDV — Ngay lập tức" },
-  { id:"VNPay Sandbox",     label:"VNPay QR",        icon:"💳", sub:"Cổng thanh toán bảo mật" },
+  { id:"Chuyển khoản test", label:"Chuyển khoản",    icon:"🏦", sub:"BIDV — Quét QR ngay" },
   { id:"MoMo",              label:"MoMo",             icon:"💜", sub:"Ví điện tử MoMo" },
 ];
 
@@ -451,17 +450,49 @@ function CopyBtn({ text, color }) {
   return <button className={`co-copy-btn${copied?" copied":""}`} style={color?{background:color+"22",color}:{}} type="button" onClick={copy}>{copied?"✓ Đã sao chép":"Sao chép"}</button>;
 }
 
-function BankInfoBox({ amount }) {
+// Tạo URL QR VietQR động theo số tiền + nội dung
+function buildVietQRUrl(amount, addInfo) {
+  const encoded = encodeURIComponent(addInfo || "Thanh toan TCTra");
+  return `https://img.vietqr.io/image/${BANK_INFO.bin}-${BANK_INFO.stk}-compact2.png?amount=${amount}&addInfo=${encoded}&accountName=${encodeURIComponent(BANK_INFO.owner)}`;
+}
+
+function BankInfoBox({ amount, transferNote }) {
+  const qrUrl = buildVietQRUrl(amount > 0 ? amount : 0, transferNote || "Thanh toan TCTra");
+
   return (
     <div className="co-bank-info">
       <div className="co-bank-info-header">
         <div className="bank-logo">B</div>
         <div>
           <h4>Chuyển khoản BIDV</h4>
-          <p>Xác nhận trong 5–15 phút sau khi nhận tiền</p>
+          <p>Quét QR — số tiền & nội dung tự điền sẵn</p>
         </div>
       </div>
       <div className="co-bank-info-body">
+
+        {/* QR CODE — nổi bật ở trên cùng */}
+        <div className="co-qr-wrap">
+          <div className="co-qr-label">📱 Quét mã QR để thanh toán</div>
+          {amount > 0 && (
+            <div className="co-qr-amount">{fmt(amount)}</div>
+          )}
+          <img
+            className="co-qr-img"
+            src={qrUrl}
+            alt="QR chuyển khoản BIDV"
+            onError={e => { e.target.style.display="none"; }}
+          />
+          <p className="co-qr-hint">
+            Dùng app ngân hàng bất kỳ quét mã QR<br/>
+            Số tiền &amp; nội dung <strong>tự động điền sẵn</strong>
+          </p>
+        </div>
+
+        {/* Thông tin thủ công (phòng khi không quét được) */}
+        <div style={{fontSize:10,fontWeight:700,color:"#aaa",textAlign:"center",letterSpacing:".06em",textTransform:"uppercase",margin:"4px 0 2px"}}>
+          — hoặc chuyển khoản thủ công —
+        </div>
+
         <div className="co-bank-row">
           <div><div className="co-bank-row-label">Số tài khoản</div><div className="co-bank-row-value">{BANK_INFO.stk}</div></div>
           <CopyBtn text={BANK_INFO.stk}/>
@@ -472,7 +503,7 @@ function BankInfoBox({ amount }) {
         <div className="co-bank-row">
           <div><div className="co-bank-row-label">Ngân hàng</div><div className="co-bank-row-value name">BIDV — Ngân hàng Đầu tư &amp; Phát triển VN</div></div>
         </div>
-        {amount>0&&(
+        {amount > 0 && (
           <div className="co-bank-row">
             <div><div className="co-bank-row-label">Số tiền</div><div className="co-bank-row-value">{fmt(amount)}</div></div>
             <CopyBtn text={String(amount)}/>
@@ -483,22 +514,6 @@ function BankInfoBox({ amount }) {
           Ví dụ: <strong>Nguyen Hong 0912345678 TCTra</strong><br/>
           ⏱ Đơn xác nhận sau khi nhận thanh toán (5–15 phút)
         </div>
-      </div>
-    </div>
-  );
-}
-
-function VNPayBox() {
-  return (
-    <div className="co-vnpay-box">
-      <div className="co-vnpay-header">
-        <div style={{width:38,height:38,borderRadius:10,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#6a1b9a",boxShadow:"0 2px 8px rgba(0,0,0,.2)"}}>VP</div>
-        <div><h4>Thanh toán VNPay</h4><p>Bấm nút bên dưới để chuyển đến cổng thanh toán</p></div>
-      </div>
-      <div className="co-vnpay-body">
-        <div className="co-vnpay-logo">💳</div>
-        <p>Bạn sẽ được chuyển đến <strong>VNPay Sandbox</strong> để hoàn tất thanh toán an toàn qua thẻ ngân hàng hoặc QR.</p>
-        <span className="sandbox-badge">🧪 Môi trường Sandbox Test</span>
       </div>
     </div>
   );
@@ -603,7 +618,6 @@ export default function CheckoutModal({
     e.preventDefault();
     if(!validate())return;
     if(cart.length===0){alert("Giỏ hàng đang trống");return;}
-    if(customer.payment_method==="VNPay Sandbox"){await onVnpay();return;}
     try{ await onSubmit(e); setOrdNum(genOrderId()); setSuccess(true); setTimeout(shootConfetti,220); }
     catch{/* handled in onSubmit */}
   };
@@ -614,9 +628,13 @@ export default function CheckoutModal({
     if(errors[key])setErrors(prev=>{const n={...prev};delete n[key];return n;});
   };
 
-  const payLabel={ COD:"Tiền mặt (COD)", "Chuyển khoản test":"Chuyển khoản BIDV", "VNPay Sandbox":"VNPay Sandbox", MoMo:"MoMo" }[payMethod]||payMethod;
+  // Tạo nội dung chuyển khoản tự động từ tên + SĐT
+  const transferNote = customer.customer_name && customer.phone
+    ? `${customer.customer_name.split(" ").pop()} ${customer.phone} TCTra`
+    : "Thanh toan TCTra";
 
-  const submitClass = payMethod==="VNPay Sandbox"?"vnpay":payMethod==="Chuyển khoản test"?"bank":"";
+  const payLabel={ COD:"Tiền mặt (COD)", "Chuyển khoản test":"Chuyển khoản BIDV", MoMo:"MoMo" }[payMethod]||payMethod;
+  const submitClass = payMethod==="Chuyển khoản test"?"bank":"";
 
   return (
     <div className="co-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
@@ -716,8 +734,7 @@ export default function CheckoutModal({
                     ))}
                   </div>
 
-                  {payMethod==="Chuyển khoản test"&&<BankInfoBox amount={totalAmount}/>}
-                  {payMethod==="VNPay Sandbox"&&<VNPayBox/>}
+                  {payMethod==="Chuyển khoản test"&&<BankInfoBox amount={totalAmount} transferNote={transferNote}/>}
                   {payMethod==="MoMo"&&<MoMoBox amount={totalAmount}/>}
                 </div>
 
@@ -773,9 +790,7 @@ export default function CheckoutModal({
                   </div>
 
                   <button className={`co-submit${submitClass?" "+submitClass:""}`} type="submit">
-                    {payMethod==="VNPay Sandbox"
-                      ? <><span>💳</span> Thanh toán qua VNPay</>
-                      : payMethod==="Chuyển khoản test"
+                    {payMethod==="Chuyển khoản test"
                       ? <><span>🏦</span> Xác nhận &amp; Chuyển khoản BIDV</>
                       : payMethod==="MoMo"
                       ? <><span>💜</span> Xác nhận đơn hàng MoMo</>
