@@ -256,7 +256,7 @@ function Storefront() {
     } catch (error) { alert("Lỗi khi chuyển sang VNPay"); console.error(error); }
   };
 
-  /* ── submitOrder – giữ nguyên logic gốc, bỏ alert thành công (CheckoutModal lo) ── */
+  // ✅ ĐÃ SỬA: thêm "return data" để CheckoutModal nhận được order_id
   const submitOrder = async e => {
     e.preventDefault();
     if (!currentUser) { alert("Vui lòng đăng nhập trước khi đặt hàng"); setShowAuth(true); return; }
@@ -265,7 +265,7 @@ function Storefront() {
       alert("Vui lòng nhập đầy đủ thông tin"); return;
     }
     if (customer.payment_method === "VNPay Sandbox") { await payWithVnpay(); return; }
-    // Chuyển khoản BIDV: thông tin tự động điền, không cần kiểm tra thêm
+
     const orderData = {
       ...customer,
       items: cart.map(item => ({ product_id: item.id, name: item.name, weight: item.weight, quantity: item.quantity, price: item.price })),
@@ -275,9 +275,18 @@ function Storefront() {
     });
     const data = await res.json();
     if (!res.ok) { alert(data.message || "Đặt hàng thất bại"); throw new Error("order failed"); }
-    // Thành công → CheckoutModal sẽ hiện màn hình success
+
+    // Reset giỏ hàng sau khi đặt thành công
     setCart([]);
-    setCustomer({ customer_name: currentUser.name || "", customer_email: currentUser.email || "", phone: "", address: "", note: "", payment_method: "COD", bank_name: "", bank_account: "", account_holder: "", otp: "", vnp_bank_code: "", vnp_card_number: "", vnp_card_holder: "", vnp_issue_date: "", vnp_otp: "" });
+    setCustomer({
+      customer_name: currentUser.name || "", customer_email: currentUser.email || "",
+      phone: "", address: "", note: "", payment_method: "COD",
+      bank_name: "", bank_account: "", account_holder: "", otp: "",
+      vnp_bank_code: "", vnp_card_number: "", vnp_card_holder: "", vnp_issue_date: "", vnp_otp: "",
+    });
+
+    // ✅ Trả về data để CheckoutModal lấy order_id hiển thị màn hình thành công
+    return data;
   };
 
   const submitContact = async e => {
@@ -638,7 +647,7 @@ function Storefront() {
         </div>
       )}
 
-      {/* ===== CHECKOUT MODAL MỚI ===== */}
+      {/* ===== CHECKOUT MODAL ===== */}
       {showCheckout && (
         <CheckoutModal
           cart={cart}
