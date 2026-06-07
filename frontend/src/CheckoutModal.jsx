@@ -498,12 +498,12 @@ export default function CheckoutModal({
   customer, setCustomer,
   onSubmit, onVnpay, currentUser,
 }) {
-  // successType: null | "cod" | "bank"
   const [successType, setSuccessType] = useState(null);
   const [ordNum, setOrdNum] = useState("");
   const [errors, setErrors] = useState({});
-  // ✅ FIX: chống bấm 2 lần
   const [submitting, setSubmitting] = useState(false);
+  // ✅ FIX: liveTransferNote nhúng order_id sau khi tạo đơn thành công
+  const [liveTransferNote, setLiveTransferNote] = useState("");
   const confettiRef = useRef(null);
   const totalAmount = cart.reduce((s,i)=>s+Number(i.price)*i.quantity, 0);
 
@@ -534,10 +534,9 @@ export default function CheckoutModal({
     }
   };
 
-  // ✅ FIX: handleSubmit có loading + chặn double-submit
   const handleSubmit=async e=>{
     e.preventDefault();
-    if(submitting) return;          // chặn bấm 2 lần
+    if(submitting) return;
     if(!validate())return;
     if(cart.length===0){alert("Giỏ hàng đang trống");return;}
     if(customer.payment_method==="VNPay Sandbox"){ await onVnpay(); return; }
@@ -546,7 +545,11 @@ export default function CheckoutModal({
       const res = await onSubmit(e);
       const id = res?.order_id || genOrderId();
       setOrdNum(id);
+
       if(customer.payment_method==="Chuyển khoản test"){
+        // ✅ FIX: nhúng order_id vào nội dung — webhook sẽ match chính xác TCT#id
+        const lastName = (customer.customer_name || "").trim().split(" ").pop();
+        setLiveTransferNote(`${lastName} ${customer.phone} TCT#${id}`);
         setSuccessType("bank");
       } else {
         setSuccessType("cod");
@@ -564,17 +567,23 @@ export default function CheckoutModal({
     if(errors[key])setErrors(prev=>{const n={...prev};delete n[key];return n;});
   };
 
+  // Note dùng trước khi submit (hiển thị trong form)
   const transferNote = customer.customer_name && customer.phone
     ? `${customer.customer_name.split(" ").pop()} ${customer.phone} TCTra`
     : "Thanh toan TCTra";
 
-  const qrUrl = buildVietQRUrl(totalAmount, transferNote);
+  // ✅ Sau khi submit: dùng liveTransferNote (có TCT#id), trước đó dùng transferNote
+  const activeNote = liveTransferNote || transferNote;
+
+  // QR trên màn hình success dùng activeNote (có order_id)
+  const successQrUrl = buildVietQRUrl(totalAmount, activeNote);
+  // QR trong form dùng transferNote thường (chưa có order_id)
+  const formQrUrl = buildVietQRUrl(totalAmount, transferNote);
 
   const payLabel={ COD:"Tiền mặt (COD)", "Chuyển khoản test":"Chuyển khoản BIDV", "VNPay Sandbox":"VNPay Sandbox", MoMo:"MoMo" }[payMethod]||payMethod;
   const submitClass = payMethod==="Chuyển khoản test"?"bank":payMethod==="VNPay Sandbox"?"vnpay":"";
   const success = successType !== null;
 
-  // ✅ FIX: nội dung nút thay đổi khi đang loading
   const submitContent = submitting ? (
     <><div className="co-spinner"/> Đang xử lý...</>
   ) : payMethod==="VNPay Sandbox" ? (
@@ -629,11 +638,11 @@ export default function CheckoutModal({
             Hệ thống sẽ <strong>tự động xác nhận</strong> sau khi nhận được tiền (5–15 phút).
           </p>
 
-          {/* QR để quét ngay trên màn hình này */}
+          {/* QR dùng activeNote (có TCT#id) để webhook match đúng */}
           <div className="co-success-qr">
             <div className="co-qr-label">📱 Quét để chuyển khoản ngay</div>
             <div className="co-qr-amount">{fmt(totalAmount)}</div>
-            <img src={qrUrl} alt="QR chuyển khoản" onError={e=>{e.target.style.display="none";}}/>
+            <img src={successQrUrl} alt="QR chuyển khoản" onError={e=>{e.target.style.display="none";}}/>
             <p>App ngân hàng bất kỳ — số tiền &amp; nội dung tự điền sẵn</p>
           </div>
 
@@ -642,7 +651,8 @@ export default function CheckoutModal({
             <div className="co-order-row"><span className="lbl">Khách hàng</span><span className="val">{customer.customer_name}</span></div>
             <div className="co-order-row"><span className="lbl">Điện thoại</span><span className="val">{customer.phone}</span></div>
             <div className="co-order-row"><span className="lbl">STK nhận</span><span className="val">BIDV — {BANK_INFO.stk}</span></div>
-            <div className="co-order-row"><span className="lbl">Nội dung CK</span><span className="val">{transferNote}</span></div>
+            {/* ✅ Hiển thị activeNote (có TCT#id) để khách nhập đúng nội dung */}
+            <div className="co-order-row"><span className="lbl">Nội dung CK</span><span className="val">{activeNote}</span></div>
             <div className="co-order-row big"><span className="lbl">Số tiền</span><span className="val">{fmt(totalAmount)}</span></div>
           </div>
           <button className="co-success-btn blue" type="button" onClick={onClose}>Đã chuyển khoản xong ✓</button>
@@ -707,6 +717,7 @@ export default function CheckoutModal({
                     ))}
                   </div>
 
+                  {/* Form dùng formQrUrl (transferNote thường, chưa có order_id) */}
                   {payMethod==="Chuyển khoản test"&&<BankInfoBox amount={totalAmount} transferNote={transferNote}/>}
                   {payMethod==="VNPay Sandbox"&&<VNPayBox/>}
                   {payMethod==="MoMo"&&<MoMoBox amount={totalAmount}/>}
@@ -762,7 +773,6 @@ export default function CheckoutModal({
                     <div className="co-order-summary-row total"><span className="lbl">Tổng thanh toán</span><span className="val">{fmt(totalAmount)}</span></div>
                   </div>
 
-                  {/* ✅ FIX: nút có disabled + spinner khi đang gửi */}
                   <button
                     className={`co-submit${submitClass?" "+submitClass:""}`}
                     type="submit"

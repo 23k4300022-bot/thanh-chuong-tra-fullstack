@@ -582,7 +582,7 @@ app.post("/api/orders", async (req, res) => {
 
     await client.query("COMMIT");
 
-    // ✅ Chỉ gửi mail ngay với COD
+    // Chỉ gửi mail ngay với COD
     // Chuyển khoản: chờ Sepay webhook xác nhận tiền về mới gửi
     if (payment_method !== "Chuyển khoản test") {
       const emailItemsResult = await poolPromise.query(
@@ -1089,43 +1089,68 @@ app.post("/api/sepay-webhook", async (req, res) => {
       return res.json({ success: true, message: "Bỏ qua giao dịch tiền ra" });
     }
 
-    // Tìm đơn hàng khớp nội dung chuyển khoản
-    // Nội dung CK có dạng: "Nguyen Hong 0912345678 TCTra" hoặc chứa mã đơn
-    const contentLower = (content || "").toLowerCase();
-    const descLower = (description || "").toLowerCase();
-    const fullText = contentLower + " " + descLower;
-
-    // Tìm tất cả đơn đang chờ xác nhận CK
-    const pendingOrders = await poolPromise.query(`
-      SELECT id, customer_name, customer_email, phone, total_amount, payment_status
-      FROM orders
-      WHERE payment_method = 'Chuyển khoản test'
-        AND payment_status = 'Chờ xác nhận chuyển khoản'
-      ORDER BY created_at DESC
-      LIMIT 20
-    `);
-
     let matchedOrder = null;
 
-    for (const order of pendingOrders.rows) {
-      const phone = (order.phone || "").replace(/\D/g, "");
-      const name = (order.customer_name || "").toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/g, "d");
+    // ✅ Bước 1: Ưu tiên match chính xác theo order_id dạng TCT#123
+    const orderIdMatch =
+      (content || "").match(/TCT#(\d+)/i) ||
+      (description || "").match(/TCT#(\d+)/i);
 
-      // Kiểm tra số tiền khớp và (SĐT hoặc tên có trong nội dung)
-      const amountMatch = Math.abs(Number(transferAmount) - Number(order.total_amount)) < 1000;
-      const phoneMatch = phone && fullText.includes(phone.slice(-9));
-      const nameMatch = name.split(" ").some(w => w.length > 2 && fullText.includes(w));
+    if (orderIdMatch) {
+      const exactId = Number(orderIdMatch[1]);
+      const exactResult = await poolPromise.query(
+        `SELECT id, customer_name, customer_email, phone, total_amount, payment_status
+         FROM orders
+         WHERE id = $1
+           AND payment_method = 'Chuyển khoản test'
+           AND payment_status = 'Chờ xác nhận chuyển khoản'
+         LIMIT 1`,
+        [exactId]
+      );
+      if (exactResult.rows.length > 0) {
+        matchedOrder = exactResult.rows[0];
+        console.log(`SePay: Match chính xác theo order_id #${exactId}`);
+      } else {
+        console.log(`SePay: Tìm TCT#${exactId} nhưng không có đơn khớp (đã thanh toán hoặc không tồn tại)`);
+      }
+    }
 
-      if (amountMatch && (phoneMatch || nameMatch)) {
-        matchedOrder = order;
-        break;
+    // ✅ Bước 2: Fallback — match theo SĐT + số tiền (chỉ khi không có TCT#id)
+    if (!matchedOrder) {
+      const fullText =
+        (content || "").toLowerCase() + " " + (description || "").toLowerCase();
+
+      const pendingOrders = await poolPromise.query(`
+        SELECT id, customer_name, customer_email, phone, total_amount, payment_status
+        FROM orders
+        WHERE payment_method = 'Chuyển khoản test'
+          AND payment_status = 'Chờ xác nhận chuyển khoản'
+        ORDER BY created_at DESC
+        LIMIT 20
+      `);
+
+      for (const order of pendingOrders.rows) {
+        const phone = (order.phone || "").replace(/\D/g, "");
+        const amountMatch =
+          Math.abs(Number(transferAmount) - Number(order.total_amount)) < 1000;
+        const phoneMatch = phone && fullText.includes(phone.slice(-9));
+
+        // Bỏ nameMatch — quá rộng, dễ nhầm đơn cũ
+        if (amountMatch && phoneMatch) {
+          matchedOrder = order;
+          console.log(
+            `SePay: Fallback match SĐT+số tiền → đơn #${order.id}`
+          );
+          break;
+        }
       }
     }
 
     if (!matchedOrder) {
-      console.log("SePay webhook: Không khớp đơn hàng nào, nội dung:", content);
+      console.log(
+        "SePay webhook: Không khớp đơn hàng nào, nội dung:",
+        content
+      );
       return res.json({ success: true, message: "Không tìm thấy đơn khớp" });
     }
 
@@ -1144,7 +1169,9 @@ app.post("/api/sepay-webhook", async (req, res) => {
       ]
     );
 
-    console.log(`SePay: Xác nhận đơn #${matchedOrder.id} - ${matchedOrder.customer_name} - ${transferAmount}đ`);
+    console.log(
+      `SePay: Xác nhận đơn #${matchedOrder.id} - ${matchedOrder.customer_name} - ${transferAmount}đ`
+    );
 
     // Lấy thông tin sản phẩm để gửi mail
     const itemsResult = await poolPromise.query(
@@ -1171,8 +1198,10 @@ app.post("/api/sepay-webhook", async (req, res) => {
       console.error("Lỗi gửi mail sau SePay webhook:", err.message);
     });
 
-    return res.json({ success: true, message: `Đã xác nhận đơn #${matchedOrder.id}` });
-
+    return res.json({
+      success: true,
+      message: `Đã xác nhận đơn #${matchedOrder.id}`,
+    });
   } catch (error) {
     console.error("Lỗi SePay webhook:", error.message);
     res.status(500).json({ success: false, message: error.message });
