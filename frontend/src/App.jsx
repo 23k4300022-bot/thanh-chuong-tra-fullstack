@@ -190,7 +190,6 @@ function Storefront() {
 
   const formatPrice = price => Number(price || 0).toLocaleString("vi-VN") + "đ";
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const totalAmount = cart.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
 
   const handleRegister = e => {
     e.preventDefault();
@@ -237,6 +236,19 @@ function Storefront() {
     setShowCheckout(true);
   };
 
+  // ✅ Hàm reset dùng chung — gọi khi đóng modal
+  const resetCartAndCustomer = () => {
+    setCart([]);
+    setCustomer({
+      customer_name: currentUser?.name || "",
+      customer_email: currentUser?.email || "",
+      phone: "", address: "", note: "", payment_method: "COD",
+      bank_name: "", bank_account: "", account_holder: "", otp: "",
+      vnp_bank_code: "", vnp_card_number: "", vnp_card_holder: "",
+      vnp_issue_date: "", vnp_otp: "",
+    });
+  };
+
   const payWithVnpay = async () => {
     if (cart.length === 0) { alert("Giỏ hàng đang trống"); return; }
     if (!customer.customer_name || !customer.customer_email || !customer.phone || !customer.address) {
@@ -256,7 +268,8 @@ function Storefront() {
     } catch (error) { alert("Lỗi khi chuyển sang VNPay"); console.error(error); }
   };
 
-  // ✅ ĐÃ SỬA: thêm "return data" để CheckoutModal nhận được order_id
+  // ✅ ĐÃ SỬA: KHÔNG reset cart/customer ở đây
+  // Reset chỉ xảy ra khi đóng modal (onClose) — để CheckoutModal hiển thị đúng totalAmount
   const submitOrder = async e => {
     e.preventDefault();
     if (!currentUser) { alert("Vui lòng đăng nhập trước khi đặt hàng"); setShowAuth(true); return; }
@@ -276,16 +289,9 @@ function Storefront() {
     const data = await res.json();
     if (!res.ok) { alert(data.message || "Đặt hàng thất bại"); throw new Error("order failed"); }
 
-    // Reset giỏ hàng sau khi đặt thành công
-    setCart([]);
-    setCustomer({
-      customer_name: currentUser.name || "", customer_email: currentUser.email || "",
-      phone: "", address: "", note: "", payment_method: "COD",
-      bank_name: "", bank_account: "", account_holder: "", otp: "",
-      vnp_bank_code: "", vnp_card_number: "", vnp_card_holder: "", vnp_issue_date: "", vnp_otp: "",
-    });
+    // ✅ KHÔNG reset ở đây — để CheckoutModal nhận totalAmount và thông tin đúng
+    // Reset sẽ xảy ra khi khách bấm đóng modal (onClose bên dưới)
 
-    // ✅ Trả về data để CheckoutModal lấy order_id hiển thị màn hình thành công
     return data;
   };
 
@@ -651,7 +657,12 @@ function Storefront() {
       {showCheckout && (
         <CheckoutModal
           cart={cart}
-          onClose={() => setShowCheckout(false)}
+          onClose={() => {
+            setShowCheckout(false);
+            // ✅ Reset cart và customer SAU KHI đóng modal
+            // Lúc này màn hình success đã hiển thị xong, totalAmount đã được dùng đúng
+            resetCartAndCustomer();
+          }}
           onInc={increaseQty}
           onDec={decreaseQty}
           onRemove={removeFromCart}
