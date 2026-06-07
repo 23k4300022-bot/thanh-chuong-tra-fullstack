@@ -12,12 +12,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-/* ===================== GEMINI AI CHATBOT CONFIG ===================== */
+/* ===================== GROQ AI CHATBOT CONFIG ===================== */
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-const GEMINI_API_URL =
-  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const chatbotRequestTimes = new Map();
 function canAskChatbot(ip) {
@@ -41,10 +39,10 @@ function cleanChatHistory(history) {
   const filtered = history
     .slice(-8)
     .map((message) => ({
-      role: message?.from === "bot" ? "model" : "user",
-      parts: [{ text: String(message?.text || "").slice(0, 1200) }],
+      role: message?.from === "bot" ? "assistant" : "user",
+      content: String(message?.text || "").slice(0, 1200),
     }))
-    .filter((message) => message.parts[0].text.trim());
+    .filter((m) => m.content.trim());
   const firstUserIdx = filtered.findIndex((m) => m.role === "user");
   if (firstUserIdx < 0) return [];
   return firstUserIdx > 0 ? filtered.slice(firstUserIdx) : filtered;
@@ -70,12 +68,12 @@ function buildProductContext(products) {
     .join("\n");
 }
 
-async function askGemini({ question, history, products }) {
-  if (!GEMINI_API_KEY) {
-    throw new Error("Thiếu GEMINI_API_KEY. Hãy thêm biến GEMINI_API_KEY trong Render Environment.");
+async function askGroq({ question, history, products }) {
+  if (!GROQ_API_KEY) {
+    throw new Error("Thiếu GROQ_API_KEY. Hãy thêm biến GROQ_API_KEY trong Render Environment.");
   }
   const productContext = buildProductContext(products);
-  const systemInstruction = `
+  const systemPrompt = `
 Bạn là trợ lý AI của website Thanh Chương Trà.
 Hãy trả lời bằng tiếng Việt, rõ ràng, thân thiện và ngắn gọn.
 Bạn có thể trả lời linh hoạt các câu hỏi phổ thông, không chỉ các từ khóa có sẵn.
@@ -95,32 +93,31 @@ DỮ LIỆU SẢN PHẨM HIỆN CÓ:
 ${productContext}
   `.trim();
 
-  const response = await fetch(GEMINI_API_URL, {
+  const response = await fetch(GROQ_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-goog-api-key": GEMINI_API_KEY,
+      "Authorization": `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemInstruction }] },
-      contents: [
+      model: "llama-3.1-8b-instant",
+      messages: [
+        { role: "system", content: systemPrompt },
         ...cleanChatHistory(history),
-        { role: "user", parts: [{ text: question }] },
+        { role: "user", content: question },
       ],
-      generationConfig: { temperature: 0.45, maxOutputTokens: 700 },
+      temperature: 0.45,
+      max_tokens: 700,
     }),
   });
 
   const responseText = await response.text();
   if (!response.ok) {
-    throw new Error(`Gemini API lỗi ${response.status}: ${responseText.slice(0, 500)}`);
+    throw new Error(`Groq API lỗi ${response.status}: ${responseText.slice(0, 500)}`);
   }
   const data = JSON.parse(responseText);
-  const reply = (data.candidates?.[0]?.content?.parts || [])
-    .map((part) => part.text || "")
-    .join("")
-    .trim();
-  if (!reply) throw new Error("Gemini không trả về nội dung phản hồi.");
+  const reply = data.choices?.[0]?.message?.content?.trim();
+  if (!reply) throw new Error("Groq không trả về nội dung phản hồi.");
   return reply;
 }
 
@@ -323,7 +320,6 @@ app.get("/api/products/:id", async (req, res) => {
   }
 });
 
-// ── ĐOẠN 1: PUT /api/products/:id ──────────────────────────
 app.put("/api/products/:id", async (req, res) => {
   try {
     const {
@@ -400,14 +396,12 @@ app.post("/api/orders", async (req, res) => {
     items, payment_method, bank_name, bank_account, account_holder,
   } = req.body;
 
-  // ✅ DEBUG LOG — xem chính xác giá trị payment_method nhận được
   console.log(">>> /api/orders payment_method:", JSON.stringify(payment_method));
 
   if (!customer_name || !customer_email || !phone || !address || !items || items.length === 0) {
     return res.status(400).json({ message: "Thiếu thông tin đặt hàng" });
   }
 
-  // ✅ Trim để tránh khoảng trắng thừa gây lỗi so sánh
   const pm = (payment_method || "").trim();
 
   let paymentStatus = "Chưa thanh toán";
@@ -450,7 +444,6 @@ app.post("/api/orders", async (req, res) => {
       );
     }
 
-    // ── ĐOẠN 2: Tăng sold_count và giảm stock ──────────────
     for (const item of items) {
       await client.query(
         `UPDATE products
@@ -463,8 +456,6 @@ app.post("/api/orders", async (req, res) => {
 
     await client.query("COMMIT");
 
-    // ✅ CHỈ gửi mail ngay với COD và MoMo
-    // Chuyển khoản test: KHÔNG gửi mail — chờ SePay webhook xác nhận tiền về
     if (pm !== "Chuyển khoản test") {
       console.log(`>>> Gửi mail ngay vì payment_method="${pm}" (không phải CK)`);
       const emailItemsResult = await poolPromise.query(
@@ -546,7 +537,6 @@ app.post("/api/create-vnpay-payment", async (req, res) => {
       );
     }
 
-    // ── ĐOẠN 3: Tăng sold_count và giảm stock ──────────────
     for (const item of items) {
       await client.query(
         `UPDATE products
@@ -666,7 +656,7 @@ app.post("/api/chatbot/ask", async (req, res) => {
     const productsResult = await poolPromise.query(
       `SELECT id, name, price, weight, category, origin, flavor, description FROM products ORDER BY id DESC LIMIT 30`
     );
-    const reply = await askGemini({ question, history, products: productsResult.rows });
+    const reply = await askGroq({ question, history, products: productsResult.rows });
 
     await poolPromise.query(
       `INSERT INTO chat_messages (customer_name, customer_email, user_message, bot_reply) VALUES ($1, $2, $3, $4)`,
@@ -674,7 +664,7 @@ app.post("/api/chatbot/ask", async (req, res) => {
     );
     res.json({ reply });
   } catch (error) {
-    console.error("Lỗi chatbot Gemini:", error.message);
+    console.error("Lỗi chatbot Groq:", error.message);
     res.status(500).json({ message: "Trợ lý AI đang tạm thời chưa phản hồi được. Vui lòng thử lại sau.", error: error.message });
   }
 });
@@ -751,7 +741,6 @@ app.post("/api/sepay-webhook", async (req, res) => {
 
     let matchedOrder = null;
 
-    // ✅ Bước 1: Match chính xác theo TCT#id trong nội dung CK
     const orderIdMatch =
       (content || "").match(/TCT#(\d+)/i) ||
       (description || "").match(/TCT#(\d+)/i);
@@ -775,7 +764,6 @@ app.post("/api/sepay-webhook", async (req, res) => {
       }
     }
 
-    // ✅ Bước 2: Fallback — match SĐT + số tiền CHÍNH XÁC + đơn tạo trong 24h gần nhất
     if (!matchedOrder) {
       const fullText = (content || "").toLowerCase() + " " + (description || "").toLowerCase();
 
