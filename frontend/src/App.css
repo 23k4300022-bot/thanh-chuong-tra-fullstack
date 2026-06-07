@@ -559,17 +559,71 @@ select {
   transform: scale(1.06);
 }
 
-.product-image span {
+/* ===== BADGES (dùng chung product + gift) ===== */
+
+.badges-top-left {
   position: absolute;
-  left: 14px;
-  top: 14px;
-  background: rgba(255, 255, 255, 0.94);
-  color: #1f7a36;
-  padding: 7px 13px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 900;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 2;
 }
+
+.badge-hot {
+  background: #1a6b2f;
+  color: #d4f5d8;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  width: fit-content;
+}
+
+.badge-discount {
+  background: #e65f00;
+  color: #fff8f0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  width: fit-content;
+}
+
+.badge-category {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f7a36;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
+  white-space: nowrap;
+  max-width: calc(100% - 20px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== PRODUCT BODY ===== */
 
 .product-body {
   padding: 20px;
@@ -688,6 +742,7 @@ select {
   overflow: hidden;
   display: grid;
   grid-template-columns: 220px 1fr;
+  position: relative;
 }
 
 .gift-card img {

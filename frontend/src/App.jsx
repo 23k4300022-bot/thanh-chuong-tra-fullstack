@@ -323,36 +323,36 @@ function Storefront() {
         .chatbot-toggle-btn { animation: chatToggleWiggle 3s ease-in-out infinite; }
         .chatbot-toggle-btn:hover { animation: none; transform: scale(1.08); }
 
-        /* Badge styles */
+        /* ===== BADGE ===== */
         .badge-hot {
-          background: #e65100;
-          color: #fff;
+          background: #1a6b2f;
+          color: #d4f5d8;
           font-size: 11px;
-          font-weight: 800;
+          font-weight: 700;
           padding: 4px 10px;
           border-radius: 999px;
-          box-shadow: 0 2px 6px rgba(230,81,0,0.35);
           display: inline-flex;
           align-items: center;
-          gap: 3px;
-          width: fit-content;
+          gap: 4px;
           white-space: nowrap;
           line-height: 1.4;
+          letter-spacing: 0.02em;
+          border: 1px solid rgba(255,255,255,0.18);
         }
         .badge-discount {
-          background: #c62828;
-          color: #fff;
+          background: #e65f00;
+          color: #fff8f0;
           font-size: 11px;
-          font-weight: 800;
+          font-weight: 700;
           padding: 4px 10px;
           border-radius: 999px;
-          box-shadow: 0 2px 6px rgba(198,40,40,0.35);
           display: inline-flex;
           align-items: center;
-          gap: 3px;
-          width: fit-content;
+          gap: 4px;
           white-space: nowrap;
           line-height: 1.4;
+          letter-spacing: 0.02em;
+          border: 1px solid rgba(255,255,255,0.18);
         }
         .badge-category {
           position: absolute;
@@ -360,12 +360,12 @@ function Storefront() {
           left: 10px;
           background: rgba(255,255,255,0.92);
           color: #1f7a36;
-          padding: 5px 11px;
+          padding: 4px 11px;
           border-radius: 999px;
-          font-size: 12px;
-          font-weight: 800;
+          font-size: 11px;
+          font-weight: 700;
           backdrop-filter: blur(4px);
-          box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.10);
           white-space: nowrap;
           max-width: calc(100% - 20px);
           overflow: hidden;
@@ -373,11 +373,11 @@ function Storefront() {
         }
         .badges-top-left {
           position: absolute;
-          top: 10px;
-          left: 10px;
+          top: 8px;
+          left: 8px;
           display: flex;
           flex-direction: column;
-          gap: 5px;
+          gap: 4px;
           z-index: 2;
         }
 
@@ -626,24 +626,28 @@ function Storefront() {
 
               return (
                 <article className="product-card" key={product.id}>
-                  {/* ── Ảnh sản phẩm ── */}
                   <div className="product-image" style={{ position: "relative" }}>
                     <img src={product.image_url} alt={product.name} />
 
-                    {/* Badge danh mục — dời xuống góc dưới trái */}
+                    {/* Badge danh mục — góc dưới trái */}
                     <span className="badge-category">{product.category}</span>
 
-                    {/* Badge bán chạy + giảm giá — góc trên trái, xếp dọc */}
+                    {/* Badge bán chạy + giảm giá — góc trên trái */}
                     <div className="badges-top-left">
-                      {hot && <span className="badge-hot">🔥 Bán chạy</span>}
+                      {hot && (
+                        <span className="badge-hot">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}><path d="M12 2c0 0-5 4-5 9a5 5 0 0010 0c0-5-5-9-5-9zm0 14a3 3 0 01-3-3c0-2.5 3-6 3-6s3 3.5 3 6a3 3 0 01-3 3z"/></svg>
+                          Bán chạy
+                        </span>
+                      )}
                       {hasDiscount && (
                         <span className="badge-discount">
-                          🏷️ {discPct > 0 ? `−${discPct}%` : `−${Number(discAmt).toLocaleString("vi-VN")}đ`}
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}><path d="M21.41 11.58L12.41 2.58A2 2 0 0011 2H4a2 2 0 00-2 2v7a2 2 0 00.59 1.42l9 9a2 2 0 002.82 0l7-7a2 2 0 000-2.84zM5.5 7A1.5 1.5 0 117 5.5 1.5 1.5 0 015.5 7z"/></svg>
+                          {discPct > 0 ? `−${discPct}%` : `−${Number(discAmt).toLocaleString("vi-VN")}đ`}
                         </span>
                       )}
                     </div>
 
-                    {/* Overlay hết hàng */}
                     {outOfStock && (
                       <div style={{
                         position: "absolute", inset: 0,
@@ -660,7 +664,6 @@ function Storefront() {
                     )}
                   </div>
 
-                  {/* ── Thông tin sản phẩm ── */}
                   <div className="product-body">
                     <h3>{product.name}</h3>
                     <p>{product.description}</p>
@@ -669,7 +672,6 @@ function Storefront() {
                       <span>{product.origin}</span>
                     </div>
 
-                    {/* Tồn kho */}
                     {!outOfStock && stock < 999 && (
                       <div style={{ marginBottom: 6, marginTop: 6 }}>
                         <span style={{
@@ -729,12 +731,18 @@ function Storefront() {
 
               return (
                 <article className="gift-card" key={product.id} style={{ position: "relative" }}>
-                  {/* Badges hộp quà */}
+                  {/* Badges hộp quà — góc trên trái */}
                   <div className="badges-top-left">
-                    {hot && <span className="badge-hot">🔥 Bán chạy</span>}
+                    {hot && (
+                      <span className="badge-hot">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}><path d="M12 2c0 0-5 4-5 9a5 5 0 0010 0c0-5-5-9-5-9zm0 14a3 3 0 01-3-3c0-2.5 3-6 3-6s3 3.5 3 6a3 3 0 01-3 3z"/></svg>
+                        Bán chạy
+                      </span>
+                    )}
                     {hasDiscount && (
                       <span className="badge-discount">
-                        🏷️ {discPct > 0 ? `−${discPct}%` : `−${Number(discAmt).toLocaleString("vi-VN")}đ`}
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}><path d="M21.41 11.58L12.41 2.58A2 2 0 0011 2H4a2 2 0 00-2 2v7a2 2 0 00.59 1.42l9 9a2 2 0 002.82 0l7-7a2 2 0 000-2.84zM5.5 7A1.5 1.5 0 117 5.5 1.5 1.5 0 015.5 7z"/></svg>
+                        {discPct > 0 ? `−${discPct}%` : `−${Number(discAmt).toLocaleString("vi-VN")}đ`}
                       </span>
                     )}
                   </div>
@@ -923,8 +931,18 @@ function Storefront() {
                   return (
                     <div style={{ marginBottom: 12 }}>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                        {hot && <span className="badge-hot">🔥 Bán chạy</span>}
-                        {hasDiscount && <span className="badge-discount">🏷️ Đang giảm giá</span>}
+                        {hot && (
+                          <span className="badge-hot">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}><path d="M12 2c0 0-5 4-5 9a5 5 0 0010 0c0-5-5-9-5-9zm0 14a3 3 0 01-3-3c0-2.5 3-6 3-6s3 3.5 3 6a3 3 0 01-3 3z"/></svg>
+                            Bán chạy
+                          </span>
+                        )}
+                        {hasDiscount && (
+                          <span className="badge-discount">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}><path d="M21.41 11.58L12.41 2.58A2 2 0 0011 2H4a2 2 0 00-2 2v7a2 2 0 00.59 1.42l9 9a2 2 0 002.82 0l7-7a2 2 0 000-2.84zM5.5 7A1.5 1.5 0 117 5.5 1.5 1.5 0 015.5 7z"/></svg>
+                            Đang giảm giá
+                          </span>
+                        )}
                       </div>
                       {hasDiscount ? (
                         <div>
