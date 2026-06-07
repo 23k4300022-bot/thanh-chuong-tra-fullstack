@@ -676,12 +676,11 @@ app.post("/api/sepay-webhook", async (req, res) => {
     }
 
     let matchedOrder = null;
-
-    // ✅ Bước 1: Match chính xác theo TCT#id trong nội dung CK
-    const orderIdMatch =
-      (content || "").match(/TCT#(\d+)/i) ||
-      (description || "").match(/TCT#(\d+)/i);
-
+// ✅ Match cả TCT#143 lẫn TCT143 (VietQR tự bỏ dấu #)
+const orderIdMatch =
+  (content || "").match(/TCT#?(\d+)/i) ||
+  (description || "").match(/TCT#?(\d+)/i);
+    
     if (orderIdMatch) {
       const exactId = Number(orderIdMatch[1]);
       const exactResult = await poolPromise.query(
