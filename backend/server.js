@@ -530,7 +530,7 @@ app.post("/api/orders", async (req, res) => {
   }
 
   if (payment_method === "Chuyển khoản test") {
-    paymentStatus = "Đã thanh toán ngân hàng test";
+    paymentStatus = "Chờ xác nhận chuyển khoản";
     testCardNumber = `${bank_name || ""} - ${bank_account || ""} - ${
       account_holder || ""
     }`;
@@ -1047,6 +1047,131 @@ app.get("/api/admin/chat-messages", async (req, res) => {
       message: "Lỗi lấy tin nhắn chatbot",
       error: error.message,
     });
+  }
+});
+
+/* ===================== SEPAY WEBHOOK ===================== */
+
+app.post("/api/sepay-webhook", async (req, res) => {
+  try {
+    // Xác thực API Key từ SePay
+    const authHeader = req.headers["authorization"] || "";
+    const apiKey = authHeader.replace("Apikey ", "").trim();
+
+    if (apiKey !== (process.env.SEPAY_API_KEY || "")) {
+      console.warn("SePay webhook: API Key không hợp lệ");
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const {
+      id,
+      gateway,
+      transactionDate,
+      accountNumber,
+      code,
+      content,
+      transferType,
+      transferAmount,
+      accumulated,
+      subAccount,
+      referenceCode,
+      description,
+    } = req.body;
+
+    console.log("SePay webhook nhận được:", JSON.stringify(req.body, null, 2));
+
+    // Chỉ xử lý tiền VÀO
+    if (transferType !== "in") {
+      return res.json({ success: true, message: "Bỏ qua giao dịch tiền ra" });
+    }
+
+    // Tìm đơn hàng khớp nội dung chuyển khoản
+    // Nội dung CK có dạng: "Nguyen Hong 0912345678 TCTra" hoặc chứa mã đơn
+    const contentLower = (content || "").toLowerCase();
+    const descLower = (description || "").toLowerCase();
+    const fullText = contentLower + " " + descLower;
+
+    // Tìm tất cả đơn đang chờ xác nhận CK
+    const pendingOrders = await poolPromise.query(`
+      SELECT id, customer_name, customer_email, phone, total_amount, payment_status
+      FROM orders
+      WHERE payment_method = 'Chuyển khoản test'
+        AND payment_status = 'Chờ xác nhận chuyển khoản'
+      ORDER BY created_at DESC
+      LIMIT 20
+    `);
+
+    let matchedOrder = null;
+
+    for (const order of pendingOrders.rows) {
+      const phone = (order.phone || "").replace(/\D/g, "");
+      const name = (order.customer_name || "").toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/đ/g, "d");
+
+      // Kiểm tra số tiền khớp và (SĐT hoặc tên có trong nội dung)
+      const amountMatch = Math.abs(Number(transferAmount) - Number(order.total_amount)) < 1000;
+      const phoneMatch = phone && fullText.includes(phone.slice(-9));
+      const nameMatch = name.split(" ").some(w => w.length > 2 && fullText.includes(w));
+
+      if (amountMatch && (phoneMatch || nameMatch)) {
+        matchedOrder = order;
+        break;
+      }
+    }
+
+    if (!matchedOrder) {
+      console.log("SePay webhook: Không khớp đơn hàng nào, nội dung:", content);
+      return res.json({ success: true, message: "Không tìm thấy đơn khớp" });
+    }
+
+    // Cập nhật trạng thái đơn hàng
+    await poolPromise.query(
+      `UPDATE orders
+       SET payment_status = $1,
+           transaction_code = $2,
+           bank_code = $3
+       WHERE id = $4`,
+      [
+        "Đã thanh toán chuyển khoản",
+        referenceCode || String(id || ""),
+        gateway || "BIDV",
+        matchedOrder.id,
+      ]
+    );
+
+    console.log(`SePay: Xác nhận đơn #${matchedOrder.id} - ${matchedOrder.customer_name} - ${transferAmount}đ`);
+
+    // Lấy thông tin sản phẩm để gửi mail
+    const itemsResult = await poolPromise.query(
+      `SELECT p.name, p.weight, oi.quantity, oi.price
+       FROM order_items oi
+       JOIN products p ON oi.product_id = p.id
+       WHERE oi.order_id = $1`,
+      [matchedOrder.id]
+    );
+
+    // Gửi email xác nhận
+    sendOrderSuccessEmail({
+      order_id: matchedOrder.id,
+      customer_name: matchedOrder.customer_name,
+      customer_email: matchedOrder.customer_email,
+      phone: matchedOrder.phone,
+      address: "",
+      note: "",
+      total_amount: matchedOrder.total_amount,
+      payment_method: "Chuyển khoản BIDV",
+      payment_status: "Đã thanh toán chuyển khoản",
+      items: itemsResult.rows,
+    }).catch((err) => {
+      console.error("Lỗi gửi mail sau SePay webhook:", err.message);
+    });
+
+    return res.json({ success: true, message: `Đã xác nhận đơn #${matchedOrder.id}` });
+
+  } catch (error) {
+    console.error("Lỗi SePay webhook:", error.message);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
