@@ -455,7 +455,7 @@ app.get("/api/products/:id", async (req, res) => {
   } catch (error) {
     console.error("Lỗi lấy chi tiết sản phẩm:", error);
     res.status(500).json({
-      message: "Lỗi lấy chi tiết sản phẩm",
+      message: "Lỗi chi tiết sản phẩm",
       error: error.message,
     });
   }
@@ -582,34 +582,38 @@ app.post("/api/orders", async (req, res) => {
 
     await client.query("COMMIT");
 
-    const emailItemsResult = await poolPromise.query(
-      `
-      SELECT 
-        p.name,
-        p.weight,
-        oi.quantity,
-        oi.price
-      FROM order_items oi
-      JOIN products p ON oi.product_id = p.id
-      WHERE oi.order_id = $1
-      `,
-      [orderId]
-    );
+    // ✅ Chỉ gửi mail ngay với COD
+    // Chuyển khoản: chờ Sepay webhook xác nhận tiền về mới gửi
+    if (payment_method !== "Chuyển khoản test") {
+      const emailItemsResult = await poolPromise.query(
+        `
+        SELECT 
+          p.name,
+          p.weight,
+          oi.quantity,
+          oi.price
+        FROM order_items oi
+        JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id = $1
+        `,
+        [orderId]
+      );
 
-    sendOrderSuccessEmail({
-      order_id: orderId,
-      customer_name,
-      customer_email,
-      phone,
-      address,
-      note,
-      total_amount: totalAmount,
-      payment_method: payment_method || "COD",
-      payment_status: paymentStatus,
-      items: emailItemsResult.rows,
-    }).catch((mailError) => {
-      console.error("Lỗi gửi email xác nhận:", mailError.message);
-    });
+      sendOrderSuccessEmail({
+        order_id: orderId,
+        customer_name,
+        customer_email,
+        phone,
+        address,
+        note,
+        total_amount: totalAmount,
+        payment_method: payment_method || "COD",
+        payment_status: paymentStatus,
+        items: emailItemsResult.rows,
+      }).catch((mailError) => {
+        console.error("Lỗi gửi email xác nhận:", mailError.message);
+      });
+    }
 
     res.json({
       message: "Đặt hàng thành công",
@@ -1151,7 +1155,7 @@ app.post("/api/sepay-webhook", async (req, res) => {
       [matchedOrder.id]
     );
 
-    // Gửi email xác nhận
+    // Gửi email xác nhận sau khi tiền đã vào
     sendOrderSuccessEmail({
       order_id: matchedOrder.id,
       customer_name: matchedOrder.customer_name,
