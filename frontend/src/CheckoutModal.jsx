@@ -265,6 +265,7 @@ const STYLES = `
 .co-success {
   display:none; flex-direction:column; align-items:center; justify-content:center;
   padding:40px 28px; text-align:center; min-height:480px;
+  overflow-y: auto;
 }
 .co-success.show { display:flex; }
 .co-success-ring {
