@@ -235,12 +235,23 @@ const STYLES = `
   transition:all .2s; margin-top:4px; letter-spacing:-.01em;
   font-family:'Be Vietnam Pro',sans-serif; box-shadow:0 6px 24px rgba(26,107,46,.3);
 }
-.co-submit:hover { background:linear-gradient(135deg,#145724,#1d7a3a); transform:translateY(-1px); box-shadow:0 10px 28px rgba(26,107,46,.35); }
-.co-submit:active { transform:translateY(0); }
+.co-submit:hover:not(:disabled) { background:linear-gradient(135deg,#145724,#1d7a3a); transform:translateY(-1px); box-shadow:0 10px 28px rgba(26,107,46,.35); }
+.co-submit:active:not(:disabled) { transform:translateY(0); }
+.co-submit:disabled { opacity:0.65; cursor:not-allowed; transform:none !important; }
 .co-submit.vnpay { background:linear-gradient(135deg,#5a1585,#7b1fa2); box-shadow:0 6px 24px rgba(90,21,133,.3); }
-.co-submit.vnpay:hover { background:linear-gradient(135deg,#4a1170,#6a1b9a); }
+.co-submit.vnpay:hover:not(:disabled) { background:linear-gradient(135deg,#4a1170,#6a1b9a); }
 .co-submit.bank { background:linear-gradient(135deg,#0d47a1,#1565c0); box-shadow:0 6px 24px rgba(13,71,161,.3); }
-.co-submit.bank:hover { background:linear-gradient(135deg,#0a3880,#0d47a1); }
+.co-submit.bank:hover:not(:disabled) { background:linear-gradient(135deg,#0a3880,#0d47a1); }
+
+/* LOADING SPINNER */
+@keyframes coSpin { to { transform: rotate(360deg); } }
+.co-spinner {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  animation: coSpin .7s linear infinite;
+  flex-shrink: 0;
+}
 
 /* ORDER SUMMARY */
 .co-order-summary { background:#fff; border:1px solid #eaede8; border-radius:16px; padding:16px; margin-bottom:18px; }
@@ -491,6 +502,8 @@ export default function CheckoutModal({
   const [successType, setSuccessType] = useState(null);
   const [ordNum, setOrdNum] = useState("");
   const [errors, setErrors] = useState({});
+  // ✅ FIX: chống bấm 2 lần
+  const [submitting, setSubmitting] = useState(false);
   const confettiRef = useRef(null);
   const totalAmount = cart.reduce((s,i)=>s+Number(i.price)*i.quantity, 0);
 
@@ -521,11 +534,14 @@ export default function CheckoutModal({
     }
   };
 
+  // ✅ FIX: handleSubmit có loading + chặn double-submit
   const handleSubmit=async e=>{
     e.preventDefault();
+    if(submitting) return;          // chặn bấm 2 lần
     if(!validate())return;
     if(cart.length===0){alert("Giỏ hàng đang trống");return;}
     if(customer.payment_method==="VNPay Sandbox"){ await onVnpay(); return; }
+    setSubmitting(true);
     try{
       const res = await onSubmit(e);
       const id = res?.order_id || genOrderId();
@@ -537,6 +553,9 @@ export default function CheckoutModal({
         setTimeout(shootConfetti, 220);
       }
     } catch{/* handled in onSubmit */}
+    finally{
+      setSubmitting(false);
+    }
   };
 
   const payMethod = customer.payment_method;
@@ -554,6 +573,19 @@ export default function CheckoutModal({
   const payLabel={ COD:"Tiền mặt (COD)", "Chuyển khoản test":"Chuyển khoản BIDV", "VNPay Sandbox":"VNPay Sandbox", MoMo:"MoMo" }[payMethod]||payMethod;
   const submitClass = payMethod==="Chuyển khoản test"?"bank":payMethod==="VNPay Sandbox"?"vnpay":"";
   const success = successType !== null;
+
+  // ✅ FIX: nội dung nút thay đổi khi đang loading
+  const submitContent = submitting ? (
+    <><div className="co-spinner"/> Đang xử lý...</>
+  ) : payMethod==="VNPay Sandbox" ? (
+    <><span>💳</span> Thanh toán qua VNPay</>
+  ) : payMethod==="Chuyển khoản test" ? (
+    <><span>🏦</span> Đặt hàng &amp; Chuyển khoản BIDV</>
+  ) : payMethod==="MoMo" ? (
+    <><span>💜</span> Xác nhận đơn hàng MoMo</>
+  ) : (
+    <><span>✅</span> Xác nhận đặt hàng</>
+  );
 
   return (
     <div className="co-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
@@ -730,14 +762,13 @@ export default function CheckoutModal({
                     <div className="co-order-summary-row total"><span className="lbl">Tổng thanh toán</span><span className="val">{fmt(totalAmount)}</span></div>
                   </div>
 
-                  <button className={`co-submit${submitClass?" "+submitClass:""}`} type="submit">
-                    {payMethod==="VNPay Sandbox"
-                      ? <><span>💳</span> Thanh toán qua VNPay</>
-                      : payMethod==="Chuyển khoản test"
-                      ? <><span>🏦</span> Đặt hàng &amp; Chuyển khoản BIDV</>
-                      : payMethod==="MoMo"
-                      ? <><span>💜</span> Xác nhận đơn hàng MoMo</>
-                      : <><span>✅</span> Xác nhận đặt hàng</>}
+                  {/* ✅ FIX: nút có disabled + spinner khi đang gửi */}
+                  <button
+                    className={`co-submit${submitClass?" "+submitClass:""}`}
+                    type="submit"
+                    disabled={submitting}
+                  >
+                    {submitContent}
                   </button>
                 </div>
               </form>
