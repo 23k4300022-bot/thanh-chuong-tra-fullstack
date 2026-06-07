@@ -3,11 +3,10 @@ import "./App.css";
 import "./admin.css";
 import AdminPage from "./AdminPage";
 import logo from "./assets/logo.png";
-import CheckoutModal from "./CheckoutModal";   // ← THÊM DÒNG NÀY
+import CheckoutModal from "./CheckoutModal";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-/* ===================== CHATBOT AVATAR SVG ===================== */
 function BotAvatar() {
   return (
     <div style={{
@@ -19,7 +18,6 @@ function BotAvatar() {
   );
 }
 
-/* ===================== TYPING INDICATOR ===================== */
 function TypingIndicator() {
   return (
     <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginBottom: 12 }}>
@@ -41,12 +39,10 @@ function TypingIndicator() {
   );
 }
 
-/* ===================== POLICY MODAL ===================== */
 function PolicyModal({ type, onClose }) {
   const policies = {
     "van-chuyen": {
-      title: "Chính sách vận chuyển",
-      icon: "🚚",
+      title: "Chính sách vận chuyển", icon: "🚚",
       content: [
         { heading: "Thời gian giao hàng", body: "Nội thành: 1–2 ngày làm việc. Ngoại thành và tỉnh thành khác: 3–5 ngày làm việc." },
         { heading: "Phí vận chuyển", body: "Miễn phí vận chuyển cho đơn hàng từ 300.000đ. Đơn dưới 300.000đ phí ship theo khu vực, thông thường 20.000–40.000đ." },
@@ -55,8 +51,7 @@ function PolicyModal({ type, onClose }) {
       ]
     },
     "doi-tra": {
-      title: "Chính sách đổi trả",
-      icon: "🔄",
+      title: "Chính sách đổi trả", icon: "🔄",
       content: [
         { heading: "Điều kiện đổi trả", body: "Sản phẩm được đổi trả trong vòng 7 ngày kể từ ngày nhận hàng nếu sản phẩm bị lỗi, hư hỏng do vận chuyển hoặc không đúng với mô tả." },
         { heading: "Sản phẩm không được đổi trả", body: "Sản phẩm đã mở seal, đã sử dụng quá 1/3 khối lượng, hoặc không còn bao bì nguyên vẹn sẽ không được đổi trả." },
@@ -65,8 +60,7 @@ function PolicyModal({ type, onClose }) {
       ]
     },
     "bao-mat": {
-      title: "Chính sách bảo mật",
-      icon: "🔒",
+      title: "Chính sách bảo mật", icon: "🔒",
       content: [
         { heading: "Thu thập thông tin", body: "Chúng tôi chỉ thu thập thông tin cần thiết bao gồm họ tên, email, số điện thoại và địa chỉ giao hàng để xử lý đơn hàng." },
         { heading: "Sử dụng thông tin", body: "Thông tin của bạn chỉ được dùng để xác nhận đơn hàng, giao hàng và gửi thông báo liên quan đến đơn hàng. Chúng tôi không chia sẻ thông tin với bên thứ ba." },
@@ -75,10 +69,8 @@ function PolicyModal({ type, onClose }) {
       ]
     }
   };
-
   const policy = policies[type];
   if (!policy) return null;
-
   return (
     <div className="modal" onClick={onClose}>
       <div className="detail-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 600 }}>
@@ -89,11 +81,7 @@ function PolicyModal({ type, onClose }) {
             <h2 style={{ margin: 0, color: "#174421" }}>{policy.title}</h2>
           </div>
           {policy.content.map((item, i) => (
-            <div key={i} style={{
-              marginBottom: 20, padding: "16px 20px",
-              background: i % 2 === 0 ? "#f8fdf5" : "#fff",
-              borderRadius: 12, borderLeft: "4px solid #2d8a45"
-            }}>
+            <div key={i} style={{ marginBottom: 20, padding: "16px 20px", background: i % 2 === 0 ? "#f8fdf5" : "#fff", borderRadius: 12, borderLeft: "4px solid #2d8a45" }}>
               <h4 style={{ margin: "0 0 8px", color: "#174421", fontSize: 15 }}>{item.heading}</h4>
               <p style={{ margin: 0, color: "#555", lineHeight: 1.7, fontSize: 14 }}>{item.body}</p>
             </div>
@@ -104,7 +92,6 @@ function PolicyModal({ type, onClose }) {
   );
 }
 
-/* ===================== STOREFRONT ===================== */
 function Storefront() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
@@ -116,29 +103,24 @@ function Storefront() {
   const [authMode, setAuthMode] = useState("login");
   const [currentUser, setCurrentUser] = useState(null);
   const [showPolicyModal, setShowPolicyModal] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false); // ← HAMBURGER STATE
 
-  // Chatbot
   const [showChatbot, setShowChatbot] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatbotLoading, setChatbotLoading] = useState(false);
   const [showChatBadge, setShowChatBadge] = useState(true);
   const chatEndRef = useRef(null);
   const [chatMessages, setChatMessages] = useState([
-    {
-      from: "bot",
-      text: "Xin chào! Mình là trợ lý Thanh Chương Trà 🍵 Bạn cần tư vấn sản phẩm, cách pha trà, đặt hàng hay thanh toán?",
-    },
+    { from: "bot", text: "Xin chào! Mình là trợ lý Thanh Chương Trà 🍵 Bạn cần tư vấn sản phẩm, cách pha trà, đặt hàng hay thanh toán?" },
   ]);
 
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "" });
-
   const [customer, setCustomer] = useState({
     customer_name: "", customer_email: "", phone: "", address: "",
     note: "", payment_method: "COD", bank_name: "", bank_account: "",
     account_holder: "", otp: "", vnp_bank_code: "", vnp_card_number: "",
     vnp_card_holder: "", vnp_issue_date: "", vnp_otp: "",
   });
-
   const [contact, setContact] = useState({ name: "", phone: "", email: "", message: "" });
 
   useEffect(() => {
@@ -146,7 +128,6 @@ function Storefront() {
       .then(res => res.json())
       .then(data => setProducts(Array.isArray(data) ? data : []))
       .catch(err => console.error("Lỗi lấy sản phẩm:", err));
-
     const savedUser = localStorage.getItem("thanh_chuong_user");
     if (savedUser) setCurrentUser(JSON.parse(savedUser));
   }, []);
@@ -155,24 +136,18 @@ function Storefront() {
     const params = new URLSearchParams(window.location.search);
     const payment = params.get("payment");
     const orderId = params.get("order_id");
-    if (payment === "vnpay_success") {
-      alert(`Thanh toán VNPay Sandbox thành công! Mã đơn: ${orderId}`);
-      setCart([]); setShowCheckout(false);
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-    if (payment === "vnpay_failed") {
-      alert(`Thanh toán VNPay thất bại hoặc đã bị hủy. Mã đơn: ${orderId}`);
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-    if (payment === "vnpay_error") {
-      alert(`Có lỗi khi xác nhận thanh toán VNPay. Mã đơn: ${orderId}`);
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
+    if (payment === "vnpay_success") { alert(`Thanh toán VNPay Sandbox thành công! Mã đơn: ${orderId}`); setCart([]); setShowCheckout(false); window.history.replaceState({}, document.title, window.location.pathname); }
+    if (payment === "vnpay_failed") { alert(`Thanh toán VNPay thất bại hoặc đã bị hủy. Mã đơn: ${orderId}`); window.history.replaceState({}, document.title, window.location.pathname); }
+    if (payment === "vnpay_error") { alert(`Có lỗi khi xác nhận thanh toán VNPay. Mã đơn: ${orderId}`); window.history.replaceState({}, document.title, window.location.pathname); }
   }, []);
 
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages, chatbotLoading]);
+
+  // Khoá scroll body khi menu mở
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages, chatbotLoading]);
+    document.body.style.overflow = menuOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [menuOpen]);
 
   const categories = useMemo(() => {
     const unique = [...new Set(products.map(item => item.category))].filter(Boolean);
@@ -184,9 +159,7 @@ function Storefront() {
     return products.filter(item => item.category === activeCategory);
   }, [products, activeCategory]);
 
-  const giftProducts = useMemo(() => {
-    return products.filter(item => String(item.category || "").toLowerCase().includes("hộp quà"));
-  }, [products]);
+  const giftProducts = useMemo(() => products.filter(item => String(item.category || "").toLowerCase().includes("hộp quà")), [products]);
 
   const formatPrice = price => Number(price || 0).toLocaleString("vi-VN") + "đ";
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -236,16 +209,13 @@ function Storefront() {
     setShowCheckout(true);
   };
 
-  // ✅ Hàm reset dùng chung — gọi khi đóng modal
   const resetCartAndCustomer = () => {
     setCart([]);
     setCustomer({
-      customer_name: currentUser?.name || "",
-      customer_email: currentUser?.email || "",
+      customer_name: currentUser?.name || "", customer_email: currentUser?.email || "",
       phone: "", address: "", note: "", payment_method: "COD",
       bank_name: "", bank_account: "", account_holder: "", otp: "",
-      vnp_bank_code: "", vnp_card_number: "", vnp_card_holder: "",
-      vnp_issue_date: "", vnp_otp: "",
+      vnp_bank_code: "", vnp_card_number: "", vnp_card_holder: "", vnp_issue_date: "", vnp_otp: "",
     });
   };
 
@@ -268,17 +238,12 @@ function Storefront() {
     } catch (error) { alert("Lỗi khi chuyển sang VNPay"); console.error(error); }
   };
 
-  // ✅ ĐÃ SỬA: KHÔNG reset cart/customer ở đây
-  // Reset chỉ xảy ra khi đóng modal (onClose) — để CheckoutModal hiển thị đúng totalAmount
   const submitOrder = async e => {
     e.preventDefault();
     if (!currentUser) { alert("Vui lòng đăng nhập trước khi đặt hàng"); setShowAuth(true); return; }
     if (cart.length === 0) { alert("Giỏ hàng đang trống"); return; }
-    if (!customer.customer_name || !customer.customer_email || !customer.phone || !customer.address) {
-      alert("Vui lòng nhập đầy đủ thông tin"); return;
-    }
+    if (!customer.customer_name || !customer.customer_email || !customer.phone || !customer.address) { alert("Vui lòng nhập đầy đủ thông tin"); return; }
     if (customer.payment_method === "VNPay Sandbox") { await payWithVnpay(); return; }
-
     const orderData = {
       ...customer,
       items: cart.map(item => ({ product_id: item.id, name: item.name, weight: item.weight, quantity: item.quantity, price: item.price })),
@@ -288,10 +253,6 @@ function Storefront() {
     });
     const data = await res.json();
     if (!res.ok) { alert(data.message || "Đặt hàng thất bại"); throw new Error("order failed"); }
-
-    // ✅ KHÔNG reset ở đây — để CheckoutModal nhận totalAmount và thông tin đúng
-    // Reset sẽ xảy ra khi khách bấm đóng modal (onClose bên dưới)
-
     return data;
   };
 
@@ -324,7 +285,6 @@ function Storefront() {
       if (!res.ok) throw new Error(data.message || "Không nhận được phản hồi từ trợ lý AI");
       setChatMessages(prev => [...prev, { from: "bot", text: data.reply }]);
     } catch (error) {
-      console.error("Lỗi chatbot AI:", error);
       setChatMessages(prev => [...prev, { from: "bot", text: "Xin lỗi, trợ lý AI đang tạm thời chưa phản hồi được. Bạn vui lòng thử lại sau ít phút hoặc liên hệ shop qua mục Liên hệ." }]);
     } finally { setChatbotLoading(false); }
   };
@@ -335,6 +295,15 @@ function Storefront() {
     "cach-pha": { title: "Cách pha trà", content: `Bước 1 — Chuẩn bị: Dùng khoảng 5–8g trà cho ấm 150–200ml.\n\nBước 2 — Tráng trà: Rót một ít nước nóng vào ấm, lắc nhẹ rồi đổ bỏ.\n\nBước 3 — Pha trà: Dùng nước khoảng 80–90°C, không dùng nước sôi 100°C.\n\nBước 4 — Hãm trà: Đậy nắp và hãm khoảng 20–30 giây.\n\nBước 5 — Thưởng thức: Rót đều ra chén, uống khi còn ấm.` },
   };
 
+  const navLinks = [
+    { href: "#home", label: "Trang chủ" },
+    { href: "#about", label: "Giới thiệu" },
+    { href: "#products", label: "Sản phẩm" },
+    { href: "#gift", label: "Hộp quà" },
+    { href: "#guide", label: "Cách pha trà" },
+    { href: "#contact", label: "Liên hệ" },
+  ];
+
   return (
     <div>
       <style>{`
@@ -343,7 +312,148 @@ function Storefront() {
         @keyframes chatToggleWiggle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
         .chatbot-toggle-btn { animation: chatToggleWiggle 3s ease-in-out infinite; }
         .chatbot-toggle-btn:hover { animation: none; transform: scale(1.08); }
+
+        /* ===== HAMBURGER MENU ===== */
+        .hamburger {
+          display: none;
+          flex-direction: column;
+          gap: 5px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 8px;
+          z-index: 1002;
+          flex-shrink: 0;
+        }
+        .hamburger span {
+          display: block;
+          width: 24px;
+          height: 2.5px;
+          background: #174421;
+          border-radius: 2px;
+          transition: all .25s;
+        }
+        .hamburger.open span:nth-child(1) { transform: translateY(7.5px) rotate(45deg); background: #fff; }
+        .hamburger.open span:nth-child(2) { opacity: 0; }
+        .hamburger.open span:nth-child(3) { transform: translateY(-7.5px) rotate(-45deg); background: #fff; }
+
+        .mobile-cart-btn {
+          display: none;
+          align-items: center;
+          gap: 6px;
+          background: #1f7a36;
+          color: #fff;
+          border: none;
+          border-radius: 20px;
+          padding: 8px 14px;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          flex-shrink: 0;
+        }
+        .mobile-cart-btn span {
+          background: #fff;
+          color: #1f7a36;
+          border-radius: 50%;
+          width: 20px;
+          height: 20px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        /* Mobile nav overlay */
+        .mobile-nav-overlay {
+          display: none;
+          position: fixed;
+          inset: 0;
+          background: rgba(13,46,21,0.97);
+          z-index: 1000;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0;
+        }
+        .mobile-nav-overlay.open { display: flex; }
+        .mobile-nav-overlay a {
+          color: #fff;
+          font-size: 22px;
+          font-weight: 700;
+          text-decoration: none;
+          padding: 16px 0;
+          width: 100%;
+          text-align: center;
+          border-bottom: 1px solid rgba(255,255,255,0.1);
+          transition: background .15s;
+        }
+        .mobile-nav-overlay a:first-child { border-top: 1px solid rgba(255,255,255,0.1); }
+        .mobile-nav-overlay a:hover { background: rgba(255,255,255,0.08); }
+        .mobile-nav-actions {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+          margin-top: 28px;
+          width: 100%;
+          padding: 0 32px;
+        }
+        .mobile-nav-actions button {
+          width: 100%;
+          padding: 13px;
+          border-radius: 12px;
+          font-size: 15px;
+          font-weight: 700;
+          cursor: pointer;
+          border: none;
+        }
+        .mobile-nav-actions .btn-login {
+          background: rgba(255,255,255,0.15);
+          color: #fff;
+          border: 1px solid rgba(255,255,255,0.3) !important;
+        }
+        .mobile-nav-actions .btn-cart {
+          background: #1f7a36;
+          color: #fff;
+        }
+        .mobile-nav-actions .btn-logout {
+          background: rgba(255,255,255,0.1);
+          color: #a5d6a7;
+          font-size: 13px;
+        }
+
+        @media (max-width: 768px) {
+          .hamburger { display: flex; }
+          .mobile-cart-btn { display: flex; }
+          .main-nav { display: none !important; }
+          .header-actions { display: none !important; }
+        }
+        @media (min-width: 769px) {
+          .mobile-nav-overlay { display: none !important; }
+          .mobile-cart-btn { display: none !important; }
+        }
       `}</style>
+
+      {/* ===== MOBILE NAV OVERLAY ===== */}
+      <div className={`mobile-nav-overlay${menuOpen ? " open" : ""}`}>
+        {navLinks.map(link => (
+          <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)}>{link.label}</a>
+        ))}
+        <div className="mobile-nav-actions">
+          {currentUser ? (
+            <>
+              <div style={{ color: "#a5d6a7", fontSize: 14, textAlign: "center" }}>Xin chào, <strong>{currentUser.name}</strong></div>
+              <button className="btn-logout" onClick={() => { logout(); setMenuOpen(false); }}>Đăng xuất</button>
+            </>
+          ) : (
+            <button className="btn-login" onClick={() => { setShowAuth(true); setAuthMode("login"); setMenuOpen(false); }}>Đăng nhập / Đăng ký</button>
+          )}
+          <button className="btn-cart" onClick={() => { openCheckout(); setMenuOpen(false); }}>
+            🛒 Giỏ hàng ({cartCount})
+          </button>
+        </div>
+      </div>
 
       <header className="site-header">
         <a href="#home" className="brand">
@@ -355,14 +465,13 @@ function Storefront() {
             <small>Hương xanh xứ Nghệ</small>
           </span>
         </a>
+
+        {/* Desktop nav */}
         <nav className="main-nav">
-          <a href="#home">Trang chủ</a>
-          <a href="#about">Giới thiệu</a>
-          <a href="#products">Sản phẩm</a>
-          <a href="#gift">Hộp quà</a>
-          <a href="#guide">Cách pha trà</a>
-          <a href="#contact">Liên hệ</a>
+          {navLinks.map(link => <a key={link.href} href={link.href}>{link.label}</a>)}
         </nav>
+
+        {/* Desktop actions */}
         <div className="header-actions">
           {currentUser ? (
             <div className="user-area">
@@ -376,6 +485,14 @@ function Storefront() {
             Giỏ hàng <span>{cartCount}</span>
           </button>
         </div>
+
+        {/* Mobile: cart + hamburger */}
+        <button className="mobile-cart-btn" onClick={openCheckout}>
+          🛒 <span>{cartCount}</span>
+        </button>
+        <button className={`hamburger${menuOpen ? " open" : ""}`} onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">
+          <span /><span /><span />
+        </button>
       </header>
 
       <main>
@@ -524,10 +641,8 @@ function Storefront() {
               <iframe
                 title="Bản đồ Thanh Chương, Nghệ An"
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d59877.11!2d105.2!3d18.73!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x313685b5a3c3ef8b%3A0x5e5e5e5e5e5e5e5e!2sThanh%20Ch%C6%B0%C6%A1ng%2C%20Ngh%E1%BB%87%20An!5e0!3m2!1svi!2svn!4v1"
-                width="100%" height="220"
-                style={{ border: 0, display: "block" }}
-                allowFullScreen loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
+                width="100%" height="220" style={{ border: 0, display: "block" }}
+                allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade"
               />
             </div>
           </div>
@@ -541,7 +656,6 @@ function Storefront() {
         </section>
       </main>
 
-      {/* FOOTER */}
       <footer style={{ background: "#0d2e14", color: "#c8e6c9", padding: "48px 5% 24px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 40, maxWidth: 1100, margin: "0 auto", paddingBottom: 32, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
           <div>
@@ -549,7 +663,7 @@ function Storefront() {
             <p style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.75 }}>Hương xanh xứ Nghệ trong từng chén trà. Tinh chọn từ vùng chè Thanh Chương, Nghệ An.</p>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
               {[{ label: "Facebook", url: "https://www.facebook.com/share/18adUuHPZp/?mibextid=wwXIfr" }, { label: "Zalo", url: "https://zalo.me/0985605049" }, { label: "TikTok", url: "https://www.tiktok.com/@hthtyuyu" }].map(sn => (
-                <a key={sn.label} href={sn.url} target="_blank" rel="noopener noreferrer" style={{ background: "rgba(255,255,255,0.1)", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", transition: "background 0.2s", color: "#c8e6c9", textDecoration: "none" }}>{sn.label}</a>
+                <a key={sn.label} href={sn.url} target="_blank" rel="noopener noreferrer" style={{ background: "rgba(255,255,255,0.1)", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", color: "#c8e6c9", textDecoration: "none" }}>{sn.label}</a>
               ))}
             </div>
           </div>
@@ -584,8 +698,7 @@ function Storefront() {
         </div>
       </footer>
 
-      {/* ===== MODALS ===== */}
-
+      {/* MODALS */}
       {showAboutModal && aboutModalData[showAboutModal] && (
         <div className="modal">
           <div className="detail-modal">
@@ -653,16 +766,10 @@ function Storefront() {
         </div>
       )}
 
-      {/* ===== CHECKOUT MODAL ===== */}
       {showCheckout && (
         <CheckoutModal
           cart={cart}
-          onClose={() => {
-            setShowCheckout(false);
-            // ✅ Reset cart và customer SAU KHI đóng modal
-            // Lúc này màn hình success đã hiển thị xong, totalAmount đã được dùng đúng
-            resetCartAndCustomer();
-          }}
+          onClose={() => { setShowCheckout(false); resetCartAndCustomer(); }}
           onInc={increaseQty}
           onDec={decreaseQty}
           onRemove={removeFromCart}
@@ -674,7 +781,7 @@ function Storefront() {
         />
       )}
 
-      {/* ===== CHATBOT ===== */}
+      {/* CHATBOT */}
       <div className="chatbot-widget">
         {showChatbot && (
           <div className="chatbot-box">
