@@ -13,8 +13,15 @@ function BotAvatar() {
       width: 32, height: 32, borderRadius: "50%",
       background: "linear-gradient(135deg, #1a5c2a, #2d8a45)",
       display: "flex", alignItems: "center", justifyContent: "center",
-      flexShrink: 0, fontSize: 16
-    }}>🍵</div>
+      flexShrink: 0,
+    }}>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        <circle cx="9" cy="10" r="1" fill="#fff" stroke="none"/>
+        <circle cx="12" cy="10" r="1" fill="#fff" stroke="none"/>
+        <circle cx="15" cy="10" r="1" fill="#fff" stroke="none"/>
+      </svg>
+    </div>
   );
 }
 
@@ -113,6 +120,39 @@ function Storefront() {
   const [chatMessages, setChatMessages] = useState([
     { from: "bot", text: "Xin chào! Mình là trợ lý Thanh Chương Trà 🍵 Bạn cần tư vấn sản phẩm, cách pha trà, đặt hàng hay thanh toán?" },
   ]);
+
+  // Drag state cho nút chatbot
+  const [dragPos, setDragPos] = useState({ right: 22, bottom: 22 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef(null);
+  const hasDragged = useRef(false);
+
+  const onDragMouseDown = (e) => {
+    e.preventDefault();
+    hasDragged.current = false;
+    dragStart.current = { x: e.clientX, y: e.clientY, right: dragPos.right, bottom: dragPos.bottom };
+    setIsDragging(true);
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const onMove = (e) => {
+      const dx = dragStart.current.x - e.clientX;
+      const dy = dragStart.current.y - e.clientY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasDragged.current = true;
+      setDragPos({
+        right: Math.max(8, Math.min(window.innerWidth - 80, dragStart.current.right + dx)),
+        bottom: Math.max(8, Math.min(window.innerHeight - 80, dragStart.current.bottom + dy)),
+      });
+    };
+    const onUp = () => setIsDragging(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [isDragging]);
 
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "" });
   const [customer, setCustomer] = useState({
@@ -319,173 +359,79 @@ function Storefront() {
       <style>{`
         @keyframes typingBounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
         @keyframes chatBadgePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
-        @keyframes chatToggleWiggle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
-        .chatbot-toggle-btn { animation: chatToggleWiggle 3s ease-in-out infinite; }
-        .chatbot-toggle-btn:hover { animation: none; transform: scale(1.08); }
+        @keyframes chatBtnWiggle { 0%,100% { transform: rotate(0deg); } 20% { transform: rotate(-12deg); } 40% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } 80% { transform: rotate(4deg); } }
+        @keyframes chatRipple { 0% { transform: scale(1); opacity: 0.5; } 100% { transform: scale(1.75); opacity: 0; } }
 
-        /* ===== BADGE ===== */
+        .chatbot-toggle-btn { animation: chatBtnWiggle 4s ease-in-out infinite; }
+        .chatbot-toggle-btn:hover { animation: none; }
+        .chatbot-ripple {
+          position: absolute; inset: 0; border-radius: 50%;
+          background: #1f7a36; pointer-events: none;
+          animation: chatRipple 2s ease-out infinite;
+        }
+
         .badge-hot {
-          background: #1a6b2f;
-          color: #d4f5d8;
-          font-size: 11px;
-          font-weight: 700;
-          padding: 4px 10px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          white-space: nowrap;
-          line-height: 1.4;
-          letter-spacing: 0.02em;
-          border: 1px solid rgba(255,255,255,0.18);
+          background: #1a6b2f; color: #d4f5d8; font-size: 11px; font-weight: 700;
+          padding: 4px 10px; border-radius: 999px; display: inline-flex;
+          align-items: center; gap: 4px; white-space: nowrap; line-height: 1.4;
+          letter-spacing: 0.02em; border: 1px solid rgba(255,255,255,0.18);
         }
         .badge-discount {
-          background: #e65f00;
-          color: #fff8f0;
-          font-size: 11px;
-          font-weight: 700;
-          padding: 4px 10px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          white-space: nowrap;
-          line-height: 1.4;
-          letter-spacing: 0.02em;
-          border: 1px solid rgba(255,255,255,0.18);
+          background: #e65f00; color: #fff8f0; font-size: 11px; font-weight: 700;
+          padding: 4px 10px; border-radius: 999px; display: inline-flex;
+          align-items: center; gap: 4px; white-space: nowrap; line-height: 1.4;
+          letter-spacing: 0.02em; border: 1px solid rgba(255,255,255,0.18);
         }
         .badge-category {
-          position: absolute;
-          bottom: 10px;
-          left: 10px;
-          background: rgba(255,255,255,0.92);
-          color: #1f7a36;
-          padding: 4px 11px;
-          border-radius: 999px;
-          font-size: 11px;
-          font-weight: 700;
-          backdrop-filter: blur(4px);
-          box-shadow: 0 2px 8px rgba(0,0,0,0.10);
-          white-space: nowrap;
-          max-width: calc(100% - 20px);
-          overflow: hidden;
-          text-overflow: ellipsis;
+          position: absolute; bottom: 10px; left: 10px;
+          background: rgba(255,255,255,0.92); color: #1f7a36;
+          padding: 4px 11px; border-radius: 999px; font-size: 11px; font-weight: 700;
+          backdrop-filter: blur(4px); box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+          white-space: nowrap; max-width: calc(100% - 20px); overflow: hidden; text-overflow: ellipsis;
         }
         .badges-top-left {
-          position: absolute;
-          top: 8px;
-          left: 8px;
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          z-index: 2;
+          position: absolute; top: 8px; left: 8px;
+          display: flex; flex-direction: column; gap: 4px; z-index: 2;
         }
 
-        /* ===== HAMBURGER MENU ===== */
         .hamburger {
-          display: none;
-          flex-direction: column;
-          gap: 5px;
-          background: none;
-          border: none;
-          cursor: pointer;
-          padding: 8px;
-          z-index: 1002;
-          flex-shrink: 0;
+          display: none; flex-direction: column; gap: 5px;
+          background: none; border: none; cursor: pointer; padding: 8px; z-index: 1002; flex-shrink: 0;
         }
-        .hamburger span {
-          display: block;
-          width: 24px;
-          height: 2.5px;
-          background: #174421;
-          border-radius: 2px;
-          transition: all .25s;
-        }
+        .hamburger span { display: block; width: 24px; height: 2.5px; background: #174421; border-radius: 2px; transition: all .25s; }
         .hamburger.open span:nth-child(1) { transform: translateY(7.5px) rotate(45deg); background: #fff; }
         .hamburger.open span:nth-child(2) { opacity: 0; }
         .hamburger.open span:nth-child(3) { transform: translateY(-7.5px) rotate(-45deg); background: #fff; }
 
         .mobile-cart-btn {
-          display: none;
-          align-items: center;
-          gap: 6px;
-          background: #1f7a36;
-          color: #fff;
-          border: none;
-          border-radius: 20px;
-          padding: 8px 14px;
-          font-size: 14px;
-          font-weight: 700;
-          cursor: pointer;
-          flex-shrink: 0;
+          display: none; align-items: center; gap: 6px; background: #1f7a36;
+          color: #fff; border: none; border-radius: 20px; padding: 8px 14px;
+          font-size: 14px; font-weight: 700; cursor: pointer; flex-shrink: 0;
         }
         .mobile-cart-btn span {
-          background: #fff;
-          color: #1f7a36;
-          border-radius: 50%;
-          width: 20px;
-          height: 20px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 12px;
-          font-weight: 900;
+          background: #fff; color: #1f7a36; border-radius: 50%; width: 20px; height: 20px;
+          display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900;
         }
-
         .mobile-nav-overlay {
-          display: none;
-          position: fixed;
-          inset: 0;
-          background: rgba(13,46,21,0.97);
-          z-index: 1000;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 0;
+          display: none; position: fixed; inset: 0; background: rgba(13,46,21,0.97); z-index: 1000;
+          flex-direction: column; align-items: center; justify-content: center; gap: 0;
         }
         .mobile-nav-overlay.open { display: flex; }
         .mobile-nav-overlay a {
-          color: #fff;
-          font-size: 22px;
-          font-weight: 700;
-          text-decoration: none;
-          padding: 16px 0;
-          width: 100%;
-          text-align: center;
-          border-bottom: 1px solid rgba(255,255,255,0.1);
-          transition: background .15s;
+          color: #fff; font-size: 22px; font-weight: 700; text-decoration: none;
+          padding: 16px 0; width: 100%; text-align: center;
+          border-bottom: 1px solid rgba(255,255,255,0.1); transition: background .15s;
         }
         .mobile-nav-overlay a:first-child { border-top: 1px solid rgba(255,255,255,0.1); }
         .mobile-nav-overlay a:hover { background: rgba(255,255,255,0.08); }
         .mobile-nav-actions {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 12px;
-          margin-top: 28px;
-          width: 100%;
-          padding: 0 32px;
+          display: flex; flex-direction: column; align-items: center;
+          gap: 12px; margin-top: 28px; width: 100%; padding: 0 32px;
         }
-        .mobile-nav-actions button {
-          width: 100%;
-          padding: 13px;
-          border-radius: 12px;
-          font-size: 15px;
-          font-weight: 700;
-          cursor: pointer;
-          border: none;
-        }
-        .mobile-nav-actions .btn-login {
-          background: rgba(255,255,255,0.15);
-          color: #fff;
-          border: 1px solid rgba(255,255,255,0.3) !important;
-        }
+        .mobile-nav-actions button { width: 100%; padding: 13px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; border: none; }
+        .mobile-nav-actions .btn-login { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3) !important; }
         .mobile-nav-actions .btn-cart { background: #1f7a36; color: #fff; }
-        .mobile-nav-actions .btn-logout {
-          background: rgba(255,255,255,0.1);
-          color: #a5d6a7;
-          font-size: 13px;
-        }
+        .mobile-nav-actions .btn-logout { background: rgba(255,255,255,0.1); color: #a5d6a7; font-size: 13px; }
 
         @media (max-width: 768px) {
           .hamburger { display: flex; }
@@ -499,7 +445,7 @@ function Storefront() {
         }
       `}</style>
 
-      {/* ===== MOBILE NAV OVERLAY ===== */}
+      {/* MOBILE NAV */}
       <div className={`mobile-nav-overlay${menuOpen ? " open" : ""}`}>
         {navLinks.map(link => (
           <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)}>{link.label}</a>
@@ -623,16 +569,11 @@ function Storefront() {
               const hot = isHotProduct(product);
               const lowStock = stock > 0 && stock < 10;
               const outOfStock = stock === 0;
-
               return (
                 <article className="product-card" key={product.id}>
                   <div className="product-image" style={{ position: "relative" }}>
                     <img src={product.image_url} alt={product.name} />
-
-                    {/* Badge danh mục — góc dưới trái */}
                     <span className="badge-category">{product.category}</span>
-
-                    {/* Badge bán chạy + giảm giá — góc trên trái */}
                     <div className="badges-top-left">
                       {hot && (
                         <span className="badge-hot">
@@ -647,23 +588,12 @@ function Storefront() {
                         </span>
                       )}
                     </div>
-
                     {outOfStock && (
-                      <div style={{
-                        position: "absolute", inset: 0,
-                        background: "rgba(0,0,0,0.48)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        borderRadius: "inherit",
-                      }}>
-                        <span style={{
-                          color: "#fff", fontWeight: 800, fontSize: 13,
-                          background: "rgba(0,0,0,0.55)",
-                          padding: "6px 18px", borderRadius: 999,
-                        }}>Hết hàng</span>
+                      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.48)", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "inherit" }}>
+                        <span style={{ color: "#fff", fontWeight: 800, fontSize: 13, background: "rgba(0,0,0,0.55)", padding: "6px 18px", borderRadius: 999 }}>Hết hàng</span>
                       </div>
                     )}
                   </div>
-
                   <div className="product-body">
                     <h3>{product.name}</h3>
                     <p>{product.description}</p>
@@ -671,39 +601,23 @@ function Storefront() {
                       <span>{product.weight}</span>
                       <span>{product.origin}</span>
                     </div>
-
                     {!outOfStock && stock < 999 && (
                       <div style={{ marginBottom: 6, marginTop: 6 }}>
-                        <span style={{
-                          fontSize: 12, fontWeight: 600,
-                          color: lowStock ? "#c62828" : "#666",
-                          background: lowStock ? "#ffebee" : "#f5f5f5",
-                          padding: "3px 9px", borderRadius: 6,
-                        }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: lowStock ? "#c62828" : "#666", background: lowStock ? "#ffebee" : "#f5f5f5", padding: "3px 9px", borderRadius: 6 }}>
                           {lowStock ? `⚠️ Còn ${stock} sản phẩm` : `📦 Còn ${stock} sản phẩm`}
                         </span>
                       </div>
                     )}
-
                     <div className="product-footer">
                       <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                        {hasDiscount && (
-                          <span style={{ fontSize: 12, color: "#aaa", textDecoration: "line-through" }}>
-                            {formatPrice(product.price)}
-                          </span>
-                        )}
+                        {hasDiscount && <span style={{ fontSize: 12, color: "#aaa", textDecoration: "line-through" }}>{formatPrice(product.price)}</span>}
                         <strong style={{ color: hasDiscount ? "#c62828" : "#b96b00" }}>
                           {hasDiscount ? formatPrice(salePrice) : formatPrice(product.price)}
                         </strong>
                       </div>
                       <button onClick={() => setSelectedProduct(product)}>Xem chi tiết</button>
                     </div>
-                    <button
-                      className="add-cart"
-                      disabled={outOfStock}
-                      style={outOfStock ? { opacity: 0.5, cursor: "not-allowed" } : {}}
-                      onClick={() => !outOfStock && addToCart(product)}
-                    >
+                    <button className="add-cart" disabled={outOfStock} style={outOfStock ? { opacity: 0.5, cursor: "not-allowed" } : {}} onClick={() => !outOfStock && addToCart(product)}>
                       {outOfStock ? "Hết hàng" : "Thêm vào giỏ hàng"}
                     </button>
                   </div>
@@ -728,10 +642,8 @@ function Storefront() {
               const hot = isHotProduct(product);
               const stock = Number(product.stock ?? 999);
               const outOfStock = stock === 0;
-
               return (
                 <article className="gift-card" key={product.id} style={{ position: "relative" }}>
-                  {/* Badges hộp quà — góc trên trái */}
                   <div className="badges-top-left">
                     {hot && (
                       <span className="badge-hot">
@@ -746,7 +658,6 @@ function Storefront() {
                       </span>
                     )}
                   </div>
-
                   <img src={product.image_url} alt={product.name} />
                   <div>
                     <h3>{product.name}</h3>
@@ -764,11 +675,7 @@ function Storefront() {
                     )}
                     <div className="gift-actions">
                       <button onClick={() => setSelectedProduct(product)}>Xem chi tiết</button>
-                      <button
-                        disabled={outOfStock}
-                        style={outOfStock ? { opacity: 0.5, cursor: "not-allowed" } : {}}
-                        onClick={() => !outOfStock && addToCart(product)}
-                      >
+                      <button disabled={outOfStock} style={outOfStock ? { opacity: 0.5, cursor: "not-allowed" } : {}} onClick={() => !outOfStock && addToCart(product)}>
                         {outOfStock ? "Hết hàng" : "Thêm vào giỏ"}
                       </button>
                     </div>
@@ -994,8 +901,17 @@ function Storefront() {
         />
       )}
 
-      {/* CHATBOT */}
-      <div className="chatbot-widget">
+      {/* ===== CHATBOT ===== */}
+      <div
+        style={{
+          position: "fixed",
+          right: dragPos.right,
+          bottom: dragPos.bottom,
+          zIndex: 9999,
+          fontFamily: '"Segoe UI", Arial, Helvetica, sans-serif',
+          userSelect: "none",
+        }}
+      >
         {showChatbot && (
           <div className="chatbot-box">
             <div className="chatbot-header">
@@ -1003,7 +919,9 @@ function Storefront() {
                 <BotAvatar />
                 <div>
                   <strong>Trợ lý Thanh Chương Trà</strong>
-                  <span style={{ display: "block", fontSize: 11, opacity: 0.8 }}>{chatbotLoading ? "🟡 Đang trả lời..." : "🟢 Trực tuyến"}</span>
+                  <span style={{ display: "block", fontSize: 11, opacity: 0.8 }}>
+                    {chatbotLoading ? "🟡 Đang trả lời..." : "🟢 Trực tuyến"}
+                  </span>
                 </div>
               </div>
               <button type="button" onClick={() => setShowChatbot(false)}>×</button>
@@ -1012,8 +930,10 @@ function Storefront() {
               {chatMessages.map((message, index) => (
                 <div key={index} style={{ display: "flex", flexDirection: message.from === "user" ? "row-reverse" : "row", alignItems: "flex-end", gap: 8, marginBottom: 12 }}>
                   {message.from === "bot" && <BotAvatar />}
-                  <div className={message.from === "user" ? "chat-message user-message" : "chat-message bot-message"}
-                    style={{ borderRadius: message.from === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", maxWidth: "78%" }}>
+                  <div
+                    className={message.from === "user" ? "chat-message user-message" : "chat-message bot-message"}
+                    style={{ borderRadius: message.from === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", maxWidth: "78%" }}
+                  >
                     {message.text}
                   </div>
                 </div>
@@ -1022,20 +942,71 @@ function Storefront() {
               <div ref={chatEndRef} />
             </div>
             <div className="chatbot-input">
-              <input type="text" placeholder="Nhập câu hỏi..." value={chatInput} disabled={chatbotLoading}
+              <input
+                type="text"
+                placeholder="Nhập câu hỏi..."
+                value={chatInput}
+                disabled={chatbotLoading}
                 onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") sendChatMessage(); }} />
-              <button type="button" onClick={sendChatMessage} disabled={chatbotLoading}>{chatbotLoading ? "..." : "Gửi"}</button>
+                onKeyDown={e => { if (e.key === "Enter") sendChatMessage(); }}
+              />
+              <button type="button" onClick={sendChatMessage} disabled={chatbotLoading}>
+                {chatbotLoading ? "..." : "Gửi"}
+              </button>
             </div>
           </div>
         )}
-        <button type="button" className="chatbot-toggle chatbot-toggle-btn"
-          onClick={() => { setShowChatbot(!showChatbot); setShowChatBadge(false); }}
-          style={{ position: "relative" }}>
+
+        {/* Nút toggle — kéo thả được */}
+        <button
+          type="button"
+          className={`chatbot-toggle${!showChatbot ? " chatbot-toggle-btn" : ""}`}
+          onMouseDown={onDragMouseDown}
+          onClick={() => {
+            if (!hasDragged.current) {
+              setShowChatbot(!showChatbot);
+              setShowChatBadge(false);
+            }
+          }}
+          style={{
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: isDragging ? "grabbing" : "grab",
+          }}
+          aria-label="Mở chatbot tư vấn"
+          title="Kéo để di chuyển · Click để mở"
+        >
+          {/* Hiệu ứng ripple khi đóng */}
+          {!showChatbot && <span className="chatbot-ripple" />}
+
+          {/* Badge thông báo */}
           {!showChatbot && showChatBadge && (
-            <span style={{ position: "absolute", top: -4, right: -4, background: "#e53935", color: "#fff", borderRadius: "50%", width: 18, height: 18, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", animation: "chatBadgePulse 1.5s infinite", fontWeight: "bold" }}>1</span>
+            <span style={{
+              position: "absolute", top: -4, right: -4, zIndex: 2,
+              background: "#e53935", color: "#fff", borderRadius: "50%",
+              width: 20, height: 20, fontSize: 11,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              border: "2px solid #fff", fontWeight: "bold",
+              animation: "chatBadgePulse 1.5s infinite",
+            }}>1</span>
           )}
-          {showChatbot ? "×" : "🍵"}
+
+          {/* Icon SVG */}
+          {showChatbot ? (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          ) : (
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              <circle cx="9" cy="10" r="1" fill="#fff" stroke="none"/>
+              <circle cx="12" cy="10" r="1" fill="#fff" stroke="none"/>
+              <circle cx="15" cy="10" r="1" fill="#fff" stroke="none"/>
+            </svg>
+          )}
         </button>
       </div>
     </div>
