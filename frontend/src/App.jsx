@@ -718,18 +718,87 @@ function Storefront() {
         </section>
 
         <section className="guide-section" id="guide">
-          <div className="section-heading">
-            <p className="eyebrow green">Thưởng trà</p>
-            <h2>Cách pha trà ngon</h2>
-          </div>
-          <div className="guide-grid">
-            <div><strong>01</strong><p>Dùng 5–8g trà cho ấm 150–200ml.</p></div>
-            <div><strong>02</strong><p>Tráng trà nhanh bằng nước nóng.</p></div>
-            <div><strong>03</strong><p>Pha với nước 80–90°C.</p></div>
-            <div><strong>04</strong><p>Hãm 20–30 giây rồi thưởng thức.</p></div>
-          </div>
-        </section>
+  <div className="section-heading">
+    <p className="eyebrow green">Thưởng trà</p>
+    <h2>Cách pha trà ngon</h2>
+    <p>Từng bước đơn giản giúp bạn cảm nhận trọn vẹn hương vị trà Thanh Chương.</p>
+  </div>
 
+  <div style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 24, maxWidth: 1100, margin: "0 auto", padding: "0 5%"
+  }}>
+    {[
+      {
+        num: "01", icon: "⚖️", title: "Chuẩn bị trà",
+        desc: "Dùng 5–8g trà cho ấm 150–200ml nước. Có thể tăng lượng trà nếu thích vị đậm hơn.",
+        tip: "Dùng cân nhỏ để đo chính xác lần đầu."
+      },
+      {
+        num: "02", icon: "🫖", title: "Tráng ấm & trà",
+        desc: "Rót nước nóng vào ấm, lắc nhẹ rồi đổ bỏ. Giúp ấm đạt nhiệt độ ổn định và khai mở hương trà.",
+        tip: "Bước này nhiều người bỏ qua nhưng rất quan trọng."
+      },
+      {
+        num: "03", icon: "🌡️", title: "Nhiệt độ nước",
+        desc: "Pha với nước 80–90°C. Không dùng nước sôi 100°C vì sẽ làm trà đắng và mất hương.",
+        tip: "Đun sôi xong để nguội 3–5 phút là đạt chuẩn."
+      },
+      {
+        num: "04", icon: "⏱️", title: "Hãm trà",
+        desc: "Đậy nắp hãm 20–30 giây cho lần đầu. Các lần sau có thể tăng thêm 10 giây mỗi lần.",
+        tip: "Trà Thanh Chương có thể pha được 4–5 lần."
+      },
+      {
+        num: "05", icon: "🍵", title: "Rót & thưởng thức",
+        desc: "Rót đều ra chén theo vòng tròn để đồng đều màu sắc. Uống khi còn ấm để cảm nhận hậu vị ngọt thanh.",
+        tip: "Dùng chén nhỏ để trà không nguội nhanh."
+      },
+      {
+        num: "06", icon: "📦", title: "Bảo quản đúng cách",
+        desc: "Giữ trà trong hộp kín, tránh ánh sáng và độ ẩm. Không để gần thực phẩm có mùi mạnh.",
+        tip: "Dùng hết trong 6 tháng sau khi mở để giữ hương tốt nhất."
+      },
+    ].map((step, i) => (
+      <div key={i} style={{
+        background: "#fff",
+        borderRadius: 20,
+        padding: "28px 24px",
+        boxShadow: "0 4px 24px rgba(31,122,54,0.08)",
+        border: "1px solid #e8f5e0",
+        display: "flex", flexDirection: "column", gap: 12,
+        transition: "transform .2s, box-shadow .2s",
+      }}
+        onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 12px 32px rgba(31,122,54,0.15)"; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 24px rgba(31,122,54,0.08)"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: "50%",
+            background: "linear-gradient(135deg,#1a6b2e,#2d9e4e)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 12, fontWeight: 900, color: "#fff", flexShrink: 0,
+            boxShadow: "0 4px 12px rgba(31,122,54,0.3)"
+          }}>{step.num}</div>
+          <span style={{ fontSize: 28 }}>{step.icon}</span>
+        </div>
+
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#174421" }}>{step.title}</h3>
+        <p style={{ margin: 0, fontSize: 13, color: "#555", lineHeight: 1.7 }}>{step.desc}</p>
+
+        <div style={{
+          background: "#f0fbf4", borderRadius: 10, padding: "8px 12px",
+          fontSize: 12, color: "#1f7a36", display: "flex", gap: 6, alignItems: "flex-start",
+          borderLeft: "3px solid #2d9e4e"
+        }}>
+          <span style={{ flexShrink: 0 }}>💡</span>
+          <span>{step.tip}</span>
+        </div>
+      </div>
+    ))}
+  </div>
+</section>
         <section className="contact-section" id="contact">
           <div>
             <p className="eyebrow green">Liên hệ</p>
@@ -799,7 +868,7 @@ function Storefront() {
           <div>
             <h4 style={{ color: "#fff", marginBottom: 16, fontSize: 14, textTransform: "uppercase", letterSpacing: 1 }}>Liên hệ</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13, opacity: 0.8 }}>
-              <span>📞 0900 000 000</span>
+              <span>📞 0395034551</span>
               <span>✉️ thanhchuongtra@gmail.com</span>
               <span>📍 Thanh Chương, Nghệ An</span>
               <span>🕐 7:00 – 21:00 hàng ngày</span>
