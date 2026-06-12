@@ -242,10 +242,25 @@ function Storefront() {
 
   const logout = () => { localStorage.removeItem("thanh_chuong_user"); setCurrentUser(null); alert("Đã đăng xuất"); };
 
+  // ✅ addToCart: lưu finalPrice vào cart, giữ originalPrice để hiển thị gạch ngang
   const addToCart = product => {
+    const discPct = Number(product.discount_percent || 0);
+    const discAmt = Number(product.discount_amount || 0);
+    const finalPrice = calcSalePrice(product.price, discPct, discAmt);
+
     const existing = cart.find(item => item.id === product.id);
-    if (existing) setCart(cart.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item));
-    else setCart([...cart, { ...product, quantity: 1 }]);
+    if (existing) {
+      setCart(cart.map(item =>
+        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+      ));
+    } else {
+      setCart([...cart, {
+        ...product,
+        price: finalPrice,             // giá đã giảm — dùng để tính tiền
+        originalPrice: product.price,  // giá gốc — dùng để hiển thị gạch ngang
+        quantity: 1,
+      }]);
+    }
   };
 
   const increaseQty = id => setCart(cart.map(item => item.id === id ? { ...item, quantity: item.quantity + 1 } : item));
@@ -278,7 +293,14 @@ function Storefront() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customer: { ...customer, payment_method: "VNPay Sandbox", vnp_bank_code: "NCB" },
-          items: cart.map(item => ({ product_id: item.id, name: item.name, price: item.price, quantity: item.quantity, weight: item.weight })),
+          items: cart.map(item => ({
+            product_id: item.id,
+            name: item.name,
+            price: item.price,          // ✅ đã là finalPrice
+            originalPrice: item.originalPrice,
+            quantity: item.quantity,
+            weight: item.weight,
+          })),
         }),
       });
       const data = await res.json();
@@ -295,7 +317,14 @@ function Storefront() {
     if (customer.payment_method === "VNPay Sandbox") { await payWithVnpay(); return; }
     const orderData = {
       ...customer,
-      items: cart.map(item => ({ product_id: item.id, name: item.name, weight: item.weight, quantity: item.quantity, price: item.price })),
+      items: cart.map(item => ({
+        product_id: item.id,
+        name: item.name,
+        weight: item.weight,
+        quantity: item.quantity,
+        price: item.price,           // ✅ đã là finalPrice
+        originalPrice: item.originalPrice,
+      })),
     };
     const res = await fetch(`${API_URL}/api/orders`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(orderData),
@@ -644,7 +673,6 @@ function Storefront() {
               const outOfStock = stock === 0;
               return (
                 <article className="gift-card" key={product.id}>
-                  {/* ── Wrapper ảnh: badges absolute bên trong ── */}
                   <div style={{ position: "relative" }}>
                     <img src={product.image_url} alt={product.name} />
                     <div className="badges-top-left">
@@ -662,7 +690,6 @@ function Storefront() {
                       )}
                     </div>
                   </div>
-                  {/* ── Nội dung text ── */}
                   <div>
                     <h3>{product.name}</h3>
                     <p>{product.description}</p>
