@@ -121,7 +121,6 @@ function Storefront() {
     { from: "bot", text: "Xin chào! Mình là trợ lý Thanh Chương Trà 🍵 Bạn cần tư vấn sản phẩm, cách pha trà, đặt hàng hay thanh toán?" },
   ]);
 
-  // Drag state cho nút chatbot
   const [dragPos, setDragPos] = useState({ right: 22, bottom: 22 });
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef(null);
@@ -627,6 +626,7 @@ function Storefront() {
           </div>
         </section>
 
+        {/* ===== GIFT SECTION ===== */}
         <section className="gift-section" id="gift">
           <div className="gift-intro">
             <p className="eyebrow">Hộp quà trà</p>
@@ -643,22 +643,26 @@ function Storefront() {
               const stock = Number(product.stock ?? 999);
               const outOfStock = stock === 0;
               return (
-                <article className="gift-card" key={product.id} style={{ position: "relative" }}>
-                  <div className="badges-top-left">
-                    {hot && (
-                      <span className="badge-hot">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}><path d="M12 2c0 0-5 4-5 9a5 5 0 0010 0c0-5-5-9-5-9zm0 14a3 3 0 01-3-3c0-2.5 3-6 3-6s3 3.5 3 6a3 3 0 01-3 3z"/></svg>
-                        Bán chạy
-                      </span>
-                    )}
-                    {hasDiscount && (
-                      <span className="badge-discount">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}><path d="M21.41 11.58L12.41 2.58A2 2 0 0011 2H4a2 2 0 00-2 2v7a2 2 0 00.59 1.42l9 9a2 2 0 002.82 0l7-7a2 2 0 000-2.84zM5.5 7A1.5 1.5 0 117 5.5 1.5 1.5 0 015.5 7z"/></svg>
-                        {discPct > 0 ? `−${discPct}%` : `−${Number(discAmt).toLocaleString("vi-VN")}đ`}
-                      </span>
-                    )}
+                <article className="gift-card" key={product.id}>
+                  {/* ── Wrapper ảnh: badges absolute bên trong ── */}
+                  <div style={{ position: "relative" }}>
+                    <img src={product.image_url} alt={product.name} />
+                    <div className="badges-top-left">
+                      {hot && (
+                        <span className="badge-hot">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}><path d="M12 2c0 0-5 4-5 9a5 5 0 0010 0c0-5-5-9-5-9zm0 14a3 3 0 01-3-3c0-2.5 3-6 3-6s3 3.5 3 6a3 3 0 01-3 3z"/></svg>
+                          Bán chạy
+                        </span>
+                      )}
+                      {hasDiscount && (
+                        <span className="badge-discount">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}><path d="M21.41 11.58L12.41 2.58A2 2 0 0011 2H4a2 2 0 00-2 2v7a2 2 0 00.59 1.42l9 9a2 2 0 002.82 0l7-7a2 2 0 000-2.84zM5.5 7A1.5 1.5 0 117 5.5 1.5 1.5 0 015.5 7z"/></svg>
+                          {discPct > 0 ? `−${discPct}%` : `−${Number(discAmt).toLocaleString("vi-VN")}đ`}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <img src={product.image_url} alt={product.name} />
+                  {/* ── Nội dung text ── */}
                   <div>
                     <h3>{product.name}</h3>
                     <p>{product.description}</p>
@@ -957,7 +961,6 @@ function Storefront() {
           </div>
         )}
 
-        {/* Nút toggle — kéo thả được */}
         <button
           type="button"
           className={`chatbot-toggle${!showChatbot ? " chatbot-toggle-btn" : ""}`}
@@ -978,10 +981,7 @@ function Storefront() {
           aria-label="Mở chatbot tư vấn"
           title="Kéo để di chuyển · Click để mở"
         >
-          {/* Hiệu ứng ripple khi đóng */}
           {!showChatbot && <span className="chatbot-ripple" />}
-
-          {/* Badge thông báo */}
           {!showChatbot && showChatBadge && (
             <span style={{
               position: "absolute", top: -4, right: -4, zIndex: 2,
@@ -992,8 +992,6 @@ function Storefront() {
               animation: "chatBadgePulse 1.5s infinite",
             }}>1</span>
           )}
-
-          {/* Icon SVG */}
           {showChatbot ? (
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18"/>
