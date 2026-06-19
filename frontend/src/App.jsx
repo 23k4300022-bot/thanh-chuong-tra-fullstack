@@ -187,6 +187,7 @@ function Storefront() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [activeCategory, setActiveCategory] = useState("Tất cả");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(null);
@@ -277,9 +278,19 @@ function Storefront() {
   }, [products]);
 
   const filteredProducts = useMemo(() => {
-    if (activeCategory === "Tất cả") return products;
-    return products.filter(item => item.category === activeCategory);
-  }, [products, activeCategory]);
+    const query = searchQuery.trim().toLocaleLowerCase("vi");
+    return products.filter(item => {
+      const matchesCategory = activeCategory === "Tất cả" || item.category === activeCategory;
+      const searchable = `${item.name || ""} ${item.category || ""} ${item.description || ""}`.toLocaleLowerCase("vi");
+      return matchesCategory && (!query || searchable.includes(query));
+    });
+  }, [products, activeCategory, searchQuery]);
+
+  const submitProductSearch = e => {
+    e.preventDefault();
+    setActiveCategory("Tất cả");
+    document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
+  };
 
   const giftProducts = useMemo(() => products.filter(item => String(item.category || "").toLowerCase().includes("hộp quà")), [products]);
 
@@ -557,6 +568,7 @@ function Storefront() {
         @media (max-width: 768px) {
           .hamburger { display: flex; }
           .mobile-cart-btn { display: flex; }
+          .header-main-row > .cart-button { display: none !important; }
           .main-nav { display: none !important; }
           .header-actions { display: none !important; }
         }
@@ -587,37 +599,49 @@ function Storefront() {
       </div>
 
       <header className="site-header">
-        <a href="#home" className="brand">
-          <span className="brand-logo-box">
-            <img src={logo} alt="Thanh Chương Trà" className="brand-logo" />
-          </span>
-          <span className="brand-text">
-            <strong>Thanh Chương Trà</strong>
-            <small>Hương xanh xứ Nghệ</small>
-          </span>
-        </a>
+        <div className="header-topbar">
+          <span>Thanh Chương Trà kính chào quý khách — Chúc bạn mỗi ngày an nhiên và trọn vị trà Việt</span>
+          <div className="header-actions">
+            {currentUser ? (
+              <div className="user-area">
+                <span title={currentUser.name}>Xin chào, {currentUser.name}</span>
+                <button onClick={logout}>Đăng xuất</button>
+              </div>
+            ) : (
+              <button className="auth-button" onClick={() => { setShowAuth(true); setAuthMode("login"); }}>Đăng nhập / Đăng ký</button>
+            )}
+          </div>
+        </div>
+        <div className="header-main-row">
+          <a href="#home" className="brand">
+            <span className="brand-logo-box">
+              <img src={logo} alt="Thanh Chương Trà" className="brand-logo" />
+            </span>
+            <span className="brand-text">
+              <strong>Thanh Chương Trà</strong>
+              <small>Hương xanh xứ Nghệ</small>
+            </span>
+          </a>
+          <form className="header-search" onSubmit={submitProductSearch}>
+            <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Tìm trà xanh, hộp quà, trà đặc sản…" aria-label="Tìm sản phẩm"/>
+            <button type="submit" aria-label="Tìm kiếm">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            </button>
+          </form>
+          <button className="cart-button" onClick={openCheckout}>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M3 4h2l2.5 11h11l2-8H6"/></svg>
+            Giỏ hàng <span>{cartCount}</span>
+          </button>
+          <button className="mobile-cart-btn" onClick={openCheckout}>
+            🛒 <span>{cartCount}</span>
+          </button>
+          <button className={`hamburger${menuOpen ? " open" : ""}`} onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">
+            <span /><span /><span />
+          </button>
+        </div>
         <nav className="main-nav">
           {navLinks.map(link => <a key={link.href} href={link.href}>{link.label}</a>)}
         </nav>
-        <div className="header-actions">
-          {currentUser ? (
-            <div className="user-area">
-              <span title={currentUser.name}>Xin chào, {currentUser.name}</span>
-              <button onClick={logout}>Đăng xuất</button>
-            </div>
-          ) : (
-            <button className="auth-button" onClick={() => { setShowAuth(true); setAuthMode("login"); }}>Đăng nhập</button>
-          )}
-          <button className="cart-button" onClick={openCheckout}>
-            Giỏ hàng <span>{cartCount}</span>
-          </button>
-        </div>
-        <button className="mobile-cart-btn" onClick={openCheckout}>
-          🛒 <span>{cartCount}</span>
-        </button>
-        <button className={`hamburger${menuOpen ? " open" : ""}`} onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">
-          <span /><span /><span />
-        </button>
       </header>
 
       <main>
