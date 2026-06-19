@@ -1222,6 +1222,9 @@ select {
   border-radius: 16px;
   font-size: 14px;
   line-height: 1.45;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .bot-message {
