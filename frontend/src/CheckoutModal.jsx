@@ -212,6 +212,11 @@ const STYLES = `
 .co-inp.err    { border-color:#e53935; background:#fff8f8; }
 .co-err { font-size:11px; color:#e53935; display:none; margin-top:1px; }
 .co-err.show   { display:block; }
+.co-address-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+.co-address-select { width:100%; padding:10px 12px; border:1.5px solid #e0e8dc; border-radius:11px; background:#fff; color:#1a2e1c; font-size:12px; outline:none; font-family:'Be Vietnam Pro',sans-serif; }
+.co-address-select:focus { border-color:#1f7a36; box-shadow:0 0 0 3px rgba(31,122,54,.1); }
+.co-address-select:disabled { background:#f4f5f3; color:#aaa; cursor:not-allowed; }
+.co-address-api-error { grid-column:1/-1; padding:7px 10px; border-radius:9px; background:#fff3f3; border:1px solid #ffcaca; color:#b42318; font-size:10px; }
 
 /* MAP */
 .co-map-search { display:flex; gap:8px; margin-bottom:8px; }
@@ -337,6 +342,7 @@ const STYLES = `
 @media(max-width:460px){
   .co-pay-grid { grid-template-columns:1fr; }
   .co-cart-item { grid-template-columns:1fr; gap:8px; }
+  .co-address-grid { grid-template-columns:1fr; }
 }
 `;
 
@@ -466,6 +472,66 @@ function MoMoBox({ amount }) {
         </div>
         {amount>0&&<div className="co-momo-row"><div><div className="co-momo-row-label">Số tiền</div><div className="co-momo-row-value">{fmt(amount)}</div></div></div>}
       </div>
+    </div>
+  );
+}
+
+const ADMIN_API_URL="https://provinces.open-api.vn/api/v2";
+
+function AdministrativeAddressPicker({ onAddressSelect }) {
+  const [provinces,setProvinces]=useState([]);
+  const [wards,setWards]=useState([]);
+  const [provinceCode,setProvinceCode]=useState("");
+  const [wardCode,setWardCode]=useState("");
+  const [loadingProvinces,setLoadingProvinces]=useState(true);
+  const [loadingWards,setLoadingWards]=useState(false);
+  const [error,setError]=useState("");
+
+  useEffect(()=>{
+    const controller=new AbortController();
+    fetch(`${ADMIN_API_URL}/`,{signal:controller.signal})
+      .then(res=>{if(!res.ok)throw new Error();return res.json();})
+      .then(data=>setProvinces(Array.isArray(data)?data:[]))
+      .catch(err=>{if(err.name!=="AbortError")setError("Chưa tải được danh sách tỉnh/thành. Bạn vẫn có thể nhập địa chỉ hoặc chọn trên bản đồ.");})
+      .finally(()=>setLoadingProvinces(false));
+    return()=>controller.abort();
+  },[]);
+
+  const changeProvince=async e=>{
+    const code=e.target.value;
+    setProvinceCode(code); setWardCode(""); setWards([]); setError("");
+    onAddressSelect("");
+    if(!code)return;
+    setLoadingWards(true);
+    try{
+      const res=await fetch(`${ADMIN_API_URL}/p/${code}?depth=2`);
+      if(!res.ok)throw new Error();
+      const data=await res.json();
+      setWards(Array.isArray(data.wards)?data.wards:[]);
+    }catch{
+      setError("Chưa tải được danh sách xã/phường. Vui lòng thử chọn lại tỉnh/thành.");
+    }finally{setLoadingWards(false);}
+  };
+
+  const changeWard=e=>{
+    const code=e.target.value;
+    setWardCode(code);
+    const province=provinces.find(item=>String(item.code)===provinceCode);
+    const ward=wards.find(item=>String(item.code)===code);
+    onAddressSelect(ward&&province?`${ward.name}, ${province.name}`:"");
+  };
+
+  return (
+    <div className="co-address-grid">
+      <select className="co-address-select" value={provinceCode} onChange={changeProvince} disabled={loadingProvinces}>
+        <option value="">{loadingProvinces?"Đang tải 34 tỉnh/thành…":"Chọn tỉnh/thành"}</option>
+        {provinces.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}
+      </select>
+      <select className="co-address-select" value={wardCode} onChange={changeWard} disabled={!provinceCode||loadingWards}>
+        <option value="">{loadingWards?"Đang tải xã/phường…":"Chọn xã/phường"}</option>
+        {wards.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}
+      </select>
+      {error&&<div className="co-address-api-error">{error}</div>}
     </div>
   );
 }
@@ -823,9 +889,10 @@ export default function CheckoutModal({
 
                   <div className="co-field">
                     <div className="co-label">📍 Địa chỉ nhận hàng <span className="req">*</span></div>
+                    <AdministrativeAddressPicker onAddressSelect={addr=>setField("address",addr)}/>
                     <MapPicker onAddressSelect={addr=>setField("address",addr)}/>
                     <textarea className={`co-inp${errors.address?" err":""}`}
-                      placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành"
+                      placeholder="Số nhà, tên đường, xã/phường, tỉnh/thành"
                       value={customer.address||""} rows={2}
                       style={{marginTop:8,minHeight:62,resize:"vertical"}}
                       onChange={e=>setField("address",e.target.value)}/>
