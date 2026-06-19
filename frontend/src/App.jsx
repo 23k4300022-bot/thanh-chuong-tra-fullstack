@@ -1217,7 +1217,7 @@ function Storefront() {
             <button className="close" onClick={() => setSelectedProduct(null)}>×</button>
             <div className="detail-grid">
               <img src={selectedProduct.image_url} alt={selectedProduct.name} />
-              <div>
+              <div className="detail-content">
                 <span className="detail-tag">{selectedProduct.category}</span>
                 <h2>{selectedProduct.name}</h2>
                 {(() => {

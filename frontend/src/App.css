@@ -1267,9 +1267,25 @@ select {
   font-size: 26px;
 }
 
+.detail-content {
+  min-width: 0;
+  text-align: left;
+}
+
 .detail-list {
-  padding-left: 20px;
-  line-height: 1.8;
+  margin: 18px 0 22px;
+  padding-left: 24px;
+  line-height: 1.65;
+  text-align: left;
+}
+
+.detail-list li {
+  margin-bottom: 8px;
+  padding-left: 2px;
+}
+
+.detail-list li:last-child {
+  margin-bottom: 0;
 }
 
 /* ===== CART ===== */
