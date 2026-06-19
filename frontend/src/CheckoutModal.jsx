@@ -132,7 +132,8 @@ const STYLES = `
 .co-pay-opt:hover { border-color:#1f7a36; color:#1f7a36; }
 .co-pay-opt.active { border-color:#1f7a36; background:#f0fbf4; color:#174421; box-shadow:0 0 0 3px rgba(31,122,54,.1); }
 .co-pay-opt.active .co-pay-check { opacity:1; }
-.co-pay-icon { font-size:22px; flex-shrink:0; }
+.co-pay-icon { width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:transform .18s, box-shadow .18s; }
+.co-pay-opt:hover .co-pay-icon, .co-pay-opt.active .co-pay-icon { transform:translateY(-1px); box-shadow:0 4px 12px rgba(20,70,30,.12); }
 .co-pay-check {
   width:18px; height:18px; background:#1f7a36; border-radius:50%;
   color:#fff; font-size:11px; font-weight:900;
@@ -359,11 +360,21 @@ const BANK_INFO = {
 };
 
 const PAY_OPTS = [
-  { id:"COD",               label:"Tiền mặt (COD)",  icon:"💵", sub:"Thanh toán khi nhận hàng" },
-  { id:"Chuyển khoản test", label:"Chuyển khoản",    icon:"🏦", sub:"BIDV — Quét QR ngay" },
-  { id:"VNPay Sandbox",     label:"VNPay QR",        icon:"💳", sub:"Cổng thanh toán bảo mật" },
-  { id:"MoMo",              label:"MoMo",             icon:"💜", sub:"Ví điện tử MoMo" },
+  { id:"COD",               label:"Tiền mặt (COD)", icon:"cash", color:"#18833b", bg:"#e8f7ed", sub:"Thanh toán khi nhận hàng" },
+  { id:"Chuyển khoản test", label:"Chuyển khoản", icon:"bank", color:"#1565c0", bg:"#eaf3ff", sub:"BIDV — Quét QR ngay" },
+  { id:"VNPay Sandbox",     label:"VNPay QR", icon:"card", color:"#6a35a5", bg:"#f2eafb", sub:"Cổng thanh toán bảo mật" },
+  { id:"MoMo",              label:"MoMo", icon:"wallet", color:"#a50088", bg:"#fdeafa", sub:"Ví điện tử MoMo" },
 ];
+
+function PaymentIcon({ name }) {
+  const icons={
+    cash:<><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 9.5A2.5 2.5 0 0 1 4.5 12 2.5 2.5 0 0 1 7 14.5M17 9.5a2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0-2.5 2.5"/><circle cx="12" cy="12" r="2.5"/></>,
+    bank:<><path d="m3 9 9-5 9 5M4 20h16M6 9v8M10 9v8M14 9v8M18 9v8"/><path d="M3 9h18M4 17h16"/></>,
+    card:<><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 9h19M6 14h5M6 16h3"/><path d="m16 13 1.2 1.2L20 11.5"/></>,
+    wallet:<><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a2 2 0 0 1 2 2v2M4 7.5h14a3 3 0 0 1 3 3V18a2 2 0 0 1-2 2H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3"/><path d="M16 12h5v4h-5a2 2 0 1 1 0-4Z"/><circle cx="16.5" cy="14" r=".5" fill="currentColor" stroke="none"/></>,
+  };
+  return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{icons[name]}</svg>;
+}
 
 function buildVietQRUrl(amount, addInfo) {
   return `https://img.vietqr.io/image/${BANK_INFO.bin}-${BANK_INFO.stk}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(addInfo||"Thanh toan TCT")}&accountName=${encodeURIComponent(BANK_INFO.owner)}`;
@@ -848,7 +859,7 @@ export default function CheckoutModal({
                           account_holder: opt.id==="Chuyển khoản test"?"NGUYEN HONG TRUONG":"",
                           otp:            opt.id==="Chuyển khoản test"?"123456":"",
                         }))}>
-                        <span className="co-pay-icon">{opt.icon}</span>
+                        <span className="co-pay-icon" style={{color:opt.color,background:opt.bg}}><PaymentIcon name={opt.icon}/></span>
                         <div style={{flex:1}}>
                           <div style={{fontSize:13,fontWeight:700}}>{opt.label}</div>
                           <div style={{fontSize:10,color:"#aaa",marginTop:2}}>{opt.sub}</div>
