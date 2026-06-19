@@ -1444,8 +1444,80 @@ function Storefront() {
   );
 }
 
+function StarRating({ value, onChange }) {
+  return <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+    {[1,2,3,4,5].map(star => <button key={star} type="button" onClick={() => onChange(star)}
+      aria-label={`${star} sao`} style={{ border: 0, background: "none", color: star <= value ? "#e5a800" : "#ccd4c8", fontSize: 34, cursor: "pointer", padding: 0 }}>★</button>)}
+  </div>;
+}
+
+function ReviewPage() {
+  const token = new URLSearchParams(window.location.search).get("token") || "";
+  const [order, setOrder] = useState(null);
+  const [form, setForm] = useState({ product_rating: 5, service_rating: 5, comment: "" });
+  const [status, setStatus] = useState("Đang tải thông tin đơn hàng...");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/order-feedback/${encodeURIComponent(token)}`)
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Liên kết không hợp lệ");
+        setOrder(data);
+        setForm({
+          product_rating: Number(data.product_rating || 5),
+          service_rating: Number(data.service_rating || 5),
+          comment: data.comment || "",
+        });
+        setStatus("");
+      })
+      .catch(error => setStatus(error.message));
+  }, [token]);
+
+  const submit = async event => {
+    event.preventDefault();
+    setSubmitting(true);
+    try {
+      const response = await fetch(`${API_URL}/api/order-feedback/${encodeURIComponent(token)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Không gửi được đánh giá");
+      setStatus(data.message);
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return <main style={{ minHeight: "100vh", background: "#f5f1e7", padding: "48px 18px", fontFamily: "Arial, sans-serif" }}>
+    <section style={{ maxWidth: 620, margin: "auto", background: "#fff", border: "1px solid #dfe8da", borderRadius: 20, padding: 30, boxShadow: "0 16px 44px rgba(23,68,33,.1)" }}>
+      <a href="/" style={{ color: "#1f7a36", textDecoration: "none", fontWeight: 700 }}>← Thanh Chương Trà</a>
+      <h1 style={{ color: "#174421", marginBottom: 8 }}>Đánh giá sản phẩm & dịch vụ</h1>
+      {order ? <>
+        <p style={{ color: "#667066" }}>Đơn hàng #{order.order_id} · Cảm ơn {order.customer_name} đã đồng hành cùng chúng tôi.</p>
+        <form onSubmit={submit}>
+          <label style={{ display: "block", marginTop: 24, fontWeight: 700 }}>Chất lượng sản phẩm</label>
+          <StarRating value={form.product_rating} onChange={value => setForm(current => ({ ...current, product_rating: value }))} />
+          <label style={{ display: "block", marginTop: 22, fontWeight: 700 }}>Dịch vụ và hậu mãi</label>
+          <StarRating value={form.service_rating} onChange={value => setForm(current => ({ ...current, service_rating: value }))} />
+          <label style={{ display: "block", marginTop: 22, fontWeight: 700 }}>Góp ý thêm (không bắt buộc)</label>
+          <textarea value={form.comment} maxLength={2000} onChange={event => setForm(current => ({ ...current, comment: event.target.value }))}
+            rows={5} style={{ width: "100%", boxSizing: "border-box", marginTop: 8, padding: 12, border: "1px solid #ccd8c8", borderRadius: 12, resize: "vertical", font: "inherit" }} />
+          <button disabled={submitting} style={{ width: "100%", marginTop: 20, padding: 14, border: 0, borderRadius: 999, background: "#1f7a36", color: "#fff", fontWeight: 800, cursor: "pointer" }}>
+            {submitting ? "Đang gửi..." : "Gửi đánh giá"}
+          </button>
+        </form>
+      </> : null}
+      {status && <p style={{ marginTop: 20, padding: 12, borderRadius: 10, background: "#eef7ea", color: "#174421" }}>{status}</p>}
+    </section>
+  </main>;
+}
+
 function App() {
   if (window.location.pathname === "/admin") return <AdminPage />;
+  if (window.location.pathname === "/review") return <ReviewPage />;
   return <Storefront />;
 }
 

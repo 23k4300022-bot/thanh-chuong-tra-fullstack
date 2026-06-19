@@ -95,6 +95,23 @@ async function ensureDiscountTables() {
   await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal_amount NUMERIC(12,2)`);
 }
 
+async function ensureAftercareTables() {
+  await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS aftercare_email_sent_at TIMESTAMPTZ`);
+  await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS feedback_token VARCHAR(96)`);
+  await poolPromise.query(`CREATE UNIQUE INDEX IF NOT EXISTS orders_feedback_token_idx ON orders(feedback_token) WHERE feedback_token IS NOT NULL`);
+  await poolPromise.query(`
+    CREATE TABLE IF NOT EXISTS order_feedback (
+      id BIGSERIAL PRIMARY KEY,
+      order_id BIGINT UNIQUE NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      product_rating SMALLINT NOT NULL CHECK (product_rating BETWEEN 1 AND 5),
+      service_rating SMALLINT NOT NULL CHECK (service_rating BETWEEN 1 AND 5),
+      comment TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
 /* ===================== GROQ AI CHATBOT CONFIG ===================== */
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
@@ -380,6 +397,85 @@ async function sendOrderSuccessEmail(orderInfo) {
     html,
   });
   console.log(`Đã gửi email xác nhận đơn hàng #${order_id} tới ${customer_email} qua SMTP`);
+}
+
+function getLoyaltyTier(totalSpent) {
+  const silver = Number(process.env.LOYALTY_SILVER_THRESHOLD || 1000000);
+  const gold = Number(process.env.LOYALTY_GOLD_THRESHOLD || 3000000);
+  const diamond = Number(process.env.LOYALTY_DIAMOND_THRESHOLD || 7000000);
+  if (totalSpent >= diamond) return { name: "Kim Cương", benefit: "Giảm 12% và ưu tiên hỗ trợ cho đơn tiếp theo" };
+  if (totalSpent >= gold) return { name: "Vàng", benefit: "Giảm 8% cho đơn tiếp theo" };
+  if (totalSpent >= silver) return { name: "Bạc", benefit: "Giảm 5% cho đơn tiếp theo" };
+  return { name: "Thân thiết", benefit: "Tích lũy doanh số để nhận ưu đãi đến 12%" };
+}
+
+async function deliverEmail({ to, name, subject, html }) {
+  if (!ENABLE_EMAIL) return;
+  if (HAS_BREVO_EMAIL) {
+    const response = await fetch(BREVO_API_URL, {
+      method: "POST",
+      headers: { "api-key": BREVO_API_KEY, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        sender: { name: EMAIL_FROM_NAME, email: EMAIL_FROM_ADDRESS || MAIL_USER },
+        to: [{ email: to, name: name || to }], subject, htmlContent: html,
+      }),
+    });
+    const responseText = await response.text();
+    if (!response.ok) throw new Error(`Brevo API lỗi ${response.status}: ${responseText.slice(0, 300)}`);
+    return;
+  }
+  if (!smtpTransporter) throw new Error("Thiếu cấu hình email: cần Brevo hoặc MAIL_USER/MAIL_PASS.");
+  await smtpTransporter.sendMail({ from: { name: EMAIL_FROM_NAME, address: MAIL_USER }, to, subject, html });
+}
+
+async function sendAftercareEmail(orderId) {
+  if (!ENABLE_EMAIL) return;
+  const claim = await poolPromise.query(
+    `UPDATE orders
+     SET aftercare_email_sent_at=NOW(), feedback_token=COALESCE(feedback_token,$1)
+     WHERE id=$2 AND aftercare_email_sent_at IS NULL
+     RETURNING *`,
+    [crypto.randomBytes(32).toString("hex"), orderId]
+  );
+  if (!claim.rows.length) return;
+  const order = claim.rows[0];
+  try {
+    const spendingResult = await poolPromise.query(
+      `SELECT COALESCE(SUM(total_amount),0) AS total_spent, COUNT(*) AS paid_orders
+       FROM orders WHERE LOWER(customer_email)=LOWER($1)
+       AND payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản')`,
+      [order.customer_email]
+    );
+    const totalSpent = Number(spendingResult.rows[0].total_spent || 0);
+    const paidOrders = Number(spendingResult.rows[0].paid_orders || 0);
+    const tier = getLoyaltyTier(totalSpent);
+    const clientUrl = String(process.env.CLIENT_URL || "http://localhost:5173").replace(/\/$/, "");
+    const reviewUrl = `${clientUrl}/review?token=${encodeURIComponent(order.feedback_token)}`;
+    const html = `
+      <div style="font-family:Arial,sans-serif;background:#f5f1e7;padding:28px;color:#263326">
+        <div style="max-width:680px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;border:1px solid #dfe8da">
+          <div style="background:#174421;color:#fff;padding:26px"><h1 style="margin:0">Thanh Chương Trà</h1><p>Cảm ơn bạn đã thanh toán thành công đơn #${order.id}</p></div>
+          <div style="padding:28px"><h2 style="color:#174421">Bạn thấy sản phẩm và dịch vụ thế nào?</h2>
+            <p>Xin chào <strong>${order.customer_name}</strong>, góp ý của bạn giúp chúng tôi chăm chút từng gói trà và phục vụ tốt hơn.</p>
+            <p style="text-align:center;margin:28px 0"><a href="${reviewUrl}" style="display:inline-block;background:#1f7a36;color:#fff;text-decoration:none;padding:14px 24px;border-radius:999px;font-weight:bold">Đánh giá đơn hàng</a></p>
+            <div style="background:#f2f8ee;border-left:5px solid #1f7a36;padding:18px;border-radius:12px">
+              <h3 style="margin-top:0">Hạng khách hàng: ${tier.name}</h3>
+              <p>Bạn đã có <strong>${paidOrders}</strong> đơn thành công, tổng chi tiêu <strong>${formatMoney(totalSpent)}</strong>.</p>
+              <p style="margin-bottom:0"><strong>Quyền lợi:</strong> ${tier.benefit}.</p>
+            </div>
+            <p style="font-size:13px;color:#667066;margin-top:24px">Chính sách áp dụng theo chương trình tại thời điểm mua hàng. Không chia sẻ liên kết đánh giá này cho người khác.</p>
+          </div>
+        </div>
+      </div>`;
+    await deliverEmail({
+      to: order.customer_email, name: order.customer_name,
+      subject: `Mời bạn đánh giá đơn #${order.id} và nhận quyền lợi thân thiết`, html,
+    });
+    console.log(`Đã gửi email hậu mãi đơn #${order.id} tới ${order.customer_email}`);
+  } catch (error) {
+    await poolPromise.query(`UPDATE orders SET aftercare_email_sent_at=NULL WHERE id=$1`, [orderId]);
+    throw error;
+  }
 }
 
 /* ===================== VNPAY FUNCTIONS ===================== */
@@ -1059,6 +1155,9 @@ app.get("/api/vnpay-return", async (req, res) => {
           console.error("Lỗi gửi email sau thanh toán VNPay:", mailError.message);
         });
       }
+      sendAftercareEmail(orderId).catch((mailError) => {
+        console.error("Lỗi gửi email hậu mãi sau VNPay:", mailError.message);
+      });
       return res.redirect(`${process.env.CLIENT_URL}?payment=vnpay_success&order_id=${orderId}`);
     }
 
@@ -1257,6 +1356,7 @@ app.post("/api/sepay-webhook", async (req, res) => {
       payment_status: "Đã thanh toán chuyển khoản",
       items: itemsResult.rows,
     });
+    await sendAftercareEmail(matchedOrder.id);
 
     return res.json({ success: true, message: `Đã xác nhận đơn #${matchedOrder.id}` });
   } catch (error) {
@@ -1265,10 +1365,50 @@ app.post("/api/sepay-webhook", async (req, res) => {
   }
 });
 
+/* ===================== ORDER FEEDBACK ===================== */
+
+app.get("/api/order-feedback/:token", async (req, res) => {
+  try {
+    const token = String(req.params.token || "");
+    if (!/^[a-f0-9]{64}$/.test(token)) return res.status(404).json({ message: "Liên kết đánh giá không hợp lệ" });
+    const result = await poolPromise.query(
+      `SELECT o.id AS order_id,o.customer_name,o.created_at,f.product_rating,f.service_rating,f.comment
+       FROM orders o LEFT JOIN order_feedback f ON f.order_id=o.id
+       WHERE o.feedback_token=$1 LIMIT 1`, [token]
+    );
+    if (!result.rows.length) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ message: "Không tải được thông tin đánh giá" });
+  }
+});
+
+app.post("/api/order-feedback/:token", async (req, res) => {
+  try {
+    const token = String(req.params.token || "");
+    const productRating = Number(req.body.product_rating);
+    const serviceRating = Number(req.body.service_rating);
+    const comment = String(req.body.comment || "").trim().slice(0, 2000);
+    if (!/^[a-f0-9]{64}$/.test(token)) return res.status(404).json({ message: "Liên kết đánh giá không hợp lệ" });
+    if (![productRating, serviceRating].every(value => Number.isInteger(value) && value >= 1 && value <= 5)) return res.status(400).json({ message: "Vui lòng chấm từ 1 đến 5 sao" });
+    const result = await poolPromise.query(
+      `INSERT INTO order_feedback(order_id,product_rating,service_rating,comment)
+       SELECT id,$2,$3,$4 FROM orders WHERE feedback_token=$1
+       ON CONFLICT(order_id) DO UPDATE SET product_rating=$2,service_rating=$3,comment=$4,updated_at=NOW()
+       RETURNING order_id`, [token, productRating, serviceRating, comment]
+    );
+    if (!result.rows.length) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    res.json({ message: "Cảm ơn bạn đã gửi đánh giá!" });
+  } catch (error) {
+    console.error("Lỗi lưu đánh giá:", error.message);
+    res.status(500).json({ message: "Không lưu được đánh giá" });
+  }
+});
+
 /* ===================== START SERVER ===================== */
 
 const PORT = process.env.PORT || 5000;
-Promise.all([ensureNewsTable(), ensureDiscountTables()])
+Promise.all([ensureNewsTable(), ensureDiscountTables(), ensureAftercareTables()])
   .then(() => app.listen(PORT, () => console.log(`Server đang chạy tại http://localhost:${PORT}`)))
   .catch((error) => {
     console.error("Không thể khởi tạo bảng tin tức:", error);
