@@ -521,6 +521,8 @@ function AdminPage() {
   const [news,setNews]=useState([]);
   const [newsComments,setNewsComments]=useState([]);
   const [discountCodes,setDiscountCodes]=useState([]);
+  const [loyalCustomers,setLoyalCustomers]=useState([]);
+  const [orderFeedback,setOrderFeedback]=useState([]);
   const [editingDiscount,setEditingDiscount]=useState(null);
   const [showDiscountEditor,setShowDiscountEditor]=useState(false);
   const [editingNews,setEditingNews]=useState(null);
@@ -543,6 +545,8 @@ function AdminPage() {
       ["news", "/api/admin/news", setNews],
       ["newsComments", "/api/admin/news-comments", setNewsComments],
       ["discountCodes", "/api/admin/discount-codes", setDiscountCodes],
+      ["loyalCustomers", "/api/admin/loyal-customers", setLoyalCustomers],
+      ["orderFeedback", "/api/admin/order-feedback", setOrderFeedback],
     ];
     const results = await Promise.allSettled(
       requests.map(async ([, path, setter]) => {
@@ -665,6 +669,8 @@ function AdminPage() {
   const filteredNews=useMemo(()=>{const search=normalize(searchTerm);return news.filter(n=>!search||[n.title,n.category,n.summary,n.status].some(v=>normalize(v).includes(search)));},[news,searchTerm]);
   const filteredNewsComments=useMemo(()=>{const search=normalize(searchTerm);return newsComments.filter(c=>!search||[c.customer_name,c.customer_email,c.content,c.news_title,c.status].some(v=>normalize(v).includes(search)));},[newsComments,searchTerm]);
   const filteredDiscountCodes=useMemo(()=>{const search=normalize(searchTerm);return discountCodes.filter(c=>!search||[c.code,c.description,c.discount_type].some(v=>normalize(v).includes(search)));},[discountCodes,searchTerm]);
+  const filteredLoyalCustomers=useMemo(()=>{const search=normalize(searchTerm);return loyalCustomers.filter(c=>!search||[c.customer_name,c.customer_email,c.phone,c.loyalty_tier].some(v=>normalize(v).includes(search)));},[loyalCustomers,searchTerm]);
+  const filteredOrderFeedback=useMemo(()=>{const search=normalize(searchTerm);return orderFeedback.filter(f=>!search||[f.order_id,f.customer_name,f.customer_email,f.product_names,f.comment,f.product_rating,f.service_rating].some(v=>normalize(v).includes(search)));},[orderFeedback,searchTerm]);
 
   const getTabCount = (tab) => {
     if (tab === "orders") return orders.length;
@@ -674,10 +680,20 @@ function AdminPage() {
     if (tab === "news") return news.length;
     if (tab === "newsComments") return newsComments.filter(c=>c.status==="pending").length;
     if (tab === "discountCodes") return discountCodes.length;
+    if (tab === "loyalCustomers") return loyalCustomers.length;
+    if (tab === "orderFeedback") return orderFeedback.length;
     return null;
   };
 
   const exportCurrentTable = () => {
+    if(activeTab==="loyalCustomers") {
+      downloadCsv("khach-hang-than-thiet.csv",[["Khách hàng","Email","Điện thoại","Số đơn đã thanh toán","Tổng chi tiêu","Hạng","Đơn gần nhất"],...filteredLoyalCustomers.map(c=>[c.customer_name,c.customer_email,c.phone,c.paid_orders,c.total_spent,c.loyalty_tier,formatDate(c.last_order_at)])]);
+      return;
+    }
+    if(activeTab==="orderFeedback") {
+      downloadCsv("phan-hoi-san-pham.csv",[["Đơn hàng","Khách hàng","Email","Sản phẩm","Sao sản phẩm","Sao dịch vụ","Phản hồi","Ngày gửi"],...filteredOrderFeedback.map(f=>[f.order_id,f.customer_name,f.customer_email,f.product_names,f.product_rating,f.service_rating,f.comment,formatDate(f.updated_at)])]);
+      return;
+    }
     if (activeTab === "orders") {
       downloadCsv("don-hang-thanh-chuong-tra.csv", [
         ["Mã đơn", "Khách hàng", "Email", "Số điện thoại", "Địa chỉ", "Tổng tiền", "Phương thức", "Trạng thái", "Ngày đặt"],
@@ -750,6 +766,8 @@ function AdminPage() {
     { key: "discountCodes", label: "Mã giảm giá", icon: "🏷️" },
     { key: "news", label: "Tin tức", icon: "📰" },
     { key: "newsComments", label: "Bình luận", icon: "💭" },
+    { key: "loyalCustomers", label: "Khách thân thiết", icon: "👑" },
+    { key: "orderFeedback", label: "Phản hồi", icon: "⭐" },
     { key: "contacts", label: "Liên hệ", icon: "✉️" },
     { key: "chat", label: "Chatbot", icon: "💬" },
   ];
@@ -868,6 +886,8 @@ function AdminPage() {
             <div className="admin-panel-head">
               <div>
                 <h2>
+                  {activeTab === "loyalCustomers" && "👑 Khách hàng thân thiết"}
+                  {activeTab === "orderFeedback" && "⭐ Phản hồi sản phẩm & dịch vụ"}
                   {activeTab === "orders" && "🛒 Danh sách đơn hàng"}
                   {activeTab === "products" && "🍃 Danh sách sản phẩm"}
                   {activeTab === "discountCodes" && "🏷️ Quản lý mã giảm giá"}
@@ -1089,6 +1109,45 @@ function AdminPage() {
               <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>ID</th><th>Bài viết</th><th>Khách hàng</th><th>Bình luận</th><th>Trạng thái</th><th>Ngày gửi</th><th>Hành động</th></tr></thead><tbody>
                 {filteredNewsComments.map(comment=><tr key={comment.id}><td>{comment.id}</td><td><strong>{comment.news_title}</strong></td><td><strong>{comment.customer_name}</strong><small>{comment.customer_email}</small></td><td style={{maxWidth:300,whiteSpace:"normal"}}>{comment.content}</td><td><span className={`admin-status ${comment.status==="approved"?"is-paid":comment.status==="hidden"?"is-failed":"is-pending"}`}>{comment.status==="approved"?"Đã duyệt":comment.status==="hidden"?"Đã ẩn":"Chờ duyệt"}</span></td><td>{formatDate(comment.created_at)}</td><td><div className="admin-comment-actions">{comment.status!=="approved"&&<button onClick={()=>updateNewsComment(comment.id,"approved")}>Duyệt</button>}{comment.status!=="hidden"&&<button onClick={()=>updateNewsComment(comment.id,"hidden")}>Ẩn</button>}<button className="danger" onClick={()=>deleteNewsComment(comment)}>Xóa</button></div></td></tr>)}
               </tbody></table>{!loading&&filteredNewsComments.length===0&&<p className="admin-empty">Chưa có bình luận phù hợp.</p>}</div>
+            )}
+
+            {activeTab === "loyalCustomers" && (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead><tr><th>Khách hàng</th><th>Điện thoại</th><th>Đơn thành công</th><th>Tổng chi tiêu</th><th>Hạng thành viên</th><th>Mua gần nhất</th></tr></thead>
+                  <tbody>{filteredLoyalCustomers.map(customer => (
+                    <tr key={customer.customer_email}>
+                      <td><strong>{customer.customer_name}</strong><small>{customer.customer_email}</small></td>
+                      <td>{customer.phone || "—"}</td>
+                      <td><strong>{customer.paid_orders}</strong></td>
+                      <td><strong>{formatMoney(customer.total_spent)}</strong></td>
+                      <td><span className="admin-status is-paid">{customer.loyalty_tier}</span></td>
+                      <td>{formatDate(customer.last_order_at)}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+                {!loading && filteredLoyalCustomers.length === 0 && <p className="admin-empty">Chưa có khách hàng đã thanh toán.</p>}
+              </div>
+            )}
+
+            {activeTab === "orderFeedback" && (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead><tr><th>Đơn hàng</th><th>Khách hàng</th><th>Sản phẩm</th><th>Sản phẩm</th><th>Dịch vụ</th><th>Nội dung phản hồi</th><th>Ngày gửi</th></tr></thead>
+                  <tbody>{filteredOrderFeedback.map(feedback => (
+                    <tr key={feedback.id}>
+                      <td>#{feedback.order_id}</td>
+                      <td><strong>{feedback.customer_name}</strong><small>{feedback.customer_email}</small></td>
+                      <td style={{maxWidth:220,whiteSpace:"normal"}}>{feedback.product_names || "—"}</td>
+                      <td><strong style={{color:"#d99b00"}}>{"★".repeat(Number(feedback.product_rating))}</strong><small>{feedback.product_rating}/5</small></td>
+                      <td><strong style={{color:"#d99b00"}}>{"★".repeat(Number(feedback.service_rating))}</strong><small>{feedback.service_rating}/5</small></td>
+                      <td style={{maxWidth:320,whiteSpace:"normal"}}>{feedback.comment || <em>Không có nhận xét</em>}</td>
+                      <td>{formatDate(feedback.updated_at)}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+                {!loading && filteredOrderFeedback.length === 0 && <p className="admin-empty">Chưa có phản hồi từ khách hàng.</p>}
+              </div>
             )}
 
             {activeTab === "contacts" && (

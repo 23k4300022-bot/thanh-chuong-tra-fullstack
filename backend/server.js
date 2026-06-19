@@ -1246,6 +1246,49 @@ app.get("/api/admin/chat-messages", async (req, res) => {
   }
 });
 
+app.get("/api/admin/loyal-customers", async (req, res) => {
+  try {
+    const result = await poolPromise.query(`
+      SELECT LOWER(customer_email) AS customer_email,
+             (ARRAY_AGG(customer_name ORDER BY created_at DESC))[1] AS customer_name,
+             (ARRAY_AGG(phone ORDER BY created_at DESC))[1] AS phone,
+             COUNT(*) FILTER (WHERE payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản'))::int AS paid_orders,
+             COALESCE(SUM(total_amount) FILTER (WHERE payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản')),0) AS total_spent,
+             MAX(created_at) FILTER (WHERE payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản')) AS last_order_at
+      FROM orders
+      WHERE customer_email IS NOT NULL AND customer_email <> ''
+      GROUP BY LOWER(customer_email)
+      HAVING COUNT(*) FILTER (WHERE payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản')) > 0
+      ORDER BY total_spent DESC
+    `);
+    res.json(result.rows.map(customer => ({
+      ...customer,
+      loyalty_tier: getLoyaltyTier(Number(customer.total_spent || 0)).name,
+    })));
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi lấy danh sách khách hàng thân thiết", error: error.message });
+  }
+});
+
+app.get("/api/admin/order-feedback", async (req, res) => {
+  try {
+    const result = await poolPromise.query(`
+      SELECT f.id,f.order_id,f.product_rating,f.service_rating,f.comment,f.created_at,f.updated_at,
+             o.customer_name,o.customer_email,o.total_amount,
+             COALESCE(STRING_AGG(DISTINCT p.name, ', '), '') AS product_names
+      FROM order_feedback f
+      JOIN orders o ON o.id=f.order_id
+      LEFT JOIN order_items oi ON oi.order_id=o.id
+      LEFT JOIN products p ON p.id=oi.product_id
+      GROUP BY f.id,o.id
+      ORDER BY f.updated_at DESC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi lấy phản hồi đơn hàng", error: error.message });
+  }
+});
+
 /* ===================== SEPAY WEBHOOK ===================== */
 
 app.post("/api/sepay-webhook", async (req, res) => {
