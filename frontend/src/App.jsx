@@ -10,6 +10,33 @@ const API_URL = import.meta.env.VITE_API_URL || (
     ? "http://localhost:5000"
     : "https://thanh-chuong-tra-fullstack.onrender.com"
 );
+const CHECKOUT_PROFILES_KEY = "thanh_chuong_checkout_profiles";
+
+function getCheckoutProfile(email) {
+  if (!email) return null;
+  try {
+    const profiles = JSON.parse(localStorage.getItem(CHECKOUT_PROFILES_KEY) || "{}");
+    return profiles[email.trim().toLowerCase()] || null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCheckoutProfile(accountEmail, customer) {
+  if (!accountEmail) return;
+  try {
+    const profiles = JSON.parse(localStorage.getItem(CHECKOUT_PROFILES_KEY) || "{}");
+    profiles[accountEmail.trim().toLowerCase()] = {
+      customer_name: customer.customer_name || "",
+      customer_email: customer.customer_email || accountEmail,
+      phone: customer.phone || "",
+      address: customer.address || "",
+    };
+    localStorage.setItem(CHECKOUT_PROFILES_KEY, JSON.stringify(profiles));
+  } catch (error) {
+    console.error("Không thể lưu thông tin giao hàng:", error);
+  }
+}
 
 function TeaGuideIcon({ name, size = 26 }) {
   const paths = {
@@ -326,7 +353,14 @@ function Storefront() {
 
   const openCheckout = () => {
     if (!currentUser) { setShowAuth(true); setAuthMode("login"); alert("Vui lòng đăng nhập trước khi thanh toán"); return; }
-    setCustomer(prev => ({ ...prev, customer_name: currentUser.name || "", customer_email: currentUser.email || prev.customer_email }));
+    const savedProfile = getCheckoutProfile(currentUser.email);
+    setCustomer(prev => ({
+      ...prev,
+      customer_name: prev.customer_name || savedProfile?.customer_name || currentUser.name || "",
+      customer_email: prev.customer_email || savedProfile?.customer_email || currentUser.email || "",
+      phone: prev.phone || savedProfile?.phone || "",
+      address: prev.address || savedProfile?.address || "",
+    }));
     setShowCheckout(true);
   };
 
@@ -362,6 +396,7 @@ function Storefront() {
       });
       const data = await res.json();
       if (!res.ok) { alert(data.message || "Không tạo được URL thanh toán VNPay"); return; }
+      saveCheckoutProfile(currentUser?.email, customer);
       window.location.href = data.url;
     } catch (error) { alert("Lỗi khi chuyển sang VNPay"); console.error(error); }
   };
@@ -388,6 +423,7 @@ function Storefront() {
     });
     const data = await res.json();
     if (!res.ok) { alert(data.message || "Đặt hàng thất bại"); throw new Error("order failed"); }
+    saveCheckoutProfile(currentUser.email, customer);
     return data;
   };
 

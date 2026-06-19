@@ -83,6 +83,7 @@ const STYLES = `
   font-family:'Be Vietnam Pro',sans-serif;
 }
 .co-sec-title::before { content:''; width:3px; height:14px; background:#1f7a36; border-radius:2px; }
+.co-profile-hint { margin:-6px 0 13px; padding:8px 10px; border-radius:10px; background:#f0faf4; border:1px solid #c8e6bc; color:#26713a; font-size:10px; line-height:1.5; }
 
 .co-cart-list { display:flex; flex-direction:column; gap:8px; margin-bottom:18px; }
 .co-cart-item {
@@ -639,7 +640,7 @@ function MapPicker({ onAddressSelect }) {
 export default function CheckoutModal({
   cart, onClose, onInc, onDec, onRemove,
   customer, setCustomer,
-  onSubmit, onVnpay,
+  onSubmit, onVnpay, currentUser,
 }) {
   const [successType, setSuccessType] = useState(null);
   const [ordNum, setOrdNum] = useState("");
@@ -864,6 +865,7 @@ export default function CheckoutModal({
 
                 <div className="co-right">
                   <div className="co-sec-title">Thông tin giao hàng</div>
+                  {currentUser&&<div className="co-profile-hint">✓ Đã tự điền từ tài khoản <strong>{currentUser.email}</strong>. Bạn có thể sửa bất kỳ thông tin nào bên dưới.</div>}
 
                   <div className="co-field">
                     <div className="co-label">Họ và tên <span className="req">*</span></div>
