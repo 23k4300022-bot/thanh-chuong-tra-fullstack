@@ -7,6 +7,59 @@ import CheckoutModal from "./CheckoutModal";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+function TeaGuideIcon({ name, size = 26 }) {
+  const paths = {
+    scale: (
+      <>
+        <path d="M12 3v18M6 6h12M7 6l-4 7h8L7 6ZM17 6l-4 7h8l-4-7Z" />
+        <path d="M3 13a4 4 0 0 0 8 0M13 13a4 4 0 0 0 8 0M8 21h8" />
+      </>
+    ),
+    teapot: (
+      <>
+        <path d="M7 9h10v6a5 5 0 0 1-5 5 5 5 0 0 1-5-5V9Z" />
+        <path d="M9 9V6h6v3M10 4h4M17 11h1.5a3 3 0 0 1 0 6H17M7 11H5c-1.5 0-2.5-1-2.5-2.5" />
+      </>
+    ),
+    temperature: (
+      <>
+        <path d="M14 14.8V5a4 4 0 0 0-8 0v9.8a6 6 0 1 0 8 0Z" />
+        <path d="M10 7v10M17 6h4M17 10h3" />
+      </>
+    ),
+    timer: (
+      <>
+        <circle cx="12" cy="13" r="8" />
+        <path d="M12 9v4l3 2M9 2h6M12 2v3" />
+      </>
+    ),
+    cup: (
+      <>
+        <path d="M4 9h13v5a6 6 0 0 1-6 6H10a6 6 0 0 1-6-6V9Z" />
+        <path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17M7 5c0-1 1-1 1-2M11 5c0-1 1-1 1-2M3 21h17" />
+      </>
+    ),
+    package: (
+      <>
+        <path d="m4 7 8-4 8 4-8 4-8-4Z" />
+        <path d="M4 7v10l8 4 8-4V7M12 11v10M8 5l8 4" />
+      </>
+    ),
+    tip: (
+      <>
+        <path d="M9 18h6M10 22h4" />
+        <path d="M8.2 14.5A7 7 0 1 1 15.8 14.5C14.7 15.3 14 16.1 14 18h-4c0-1.9-.7-2.7-1.8-3.5Z" />
+      </>
+    ),
+  };
+
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {paths[name]}
+    </svg>
+  );
+}
+
 function BotAvatar() {
   return (
     <div style={{
@@ -731,32 +784,32 @@ function Storefront() {
   }}>
     {[
       {
-        num: "01", icon: "⚖️", title: "Chuẩn bị trà",
+        num: "01", icon: "scale", title: "Chuẩn bị trà",
         desc: "Dùng 5–8g trà cho ấm 150–200ml nước. Có thể tăng lượng trà nếu thích vị đậm hơn.",
         tip: "Dùng cân nhỏ để đo chính xác lần đầu."
       },
       {
-        num: "02", icon: "🫖", title: "Tráng ấm & trà",
+        num: "02", icon: "teapot", title: "Tráng ấm & trà",
         desc: "Rót nước nóng vào ấm, lắc nhẹ rồi đổ bỏ. Giúp ấm đạt nhiệt độ ổn định và khai mở hương trà.",
         tip: "Bước này nhiều người bỏ qua nhưng rất quan trọng."
       },
       {
-        num: "03", icon: "🌡️", title: "Nhiệt độ nước",
+        num: "03", icon: "temperature", title: "Nhiệt độ nước",
         desc: "Pha với nước 80–90°C. Không dùng nước sôi 100°C vì sẽ làm trà đắng và mất hương.",
         tip: "Đun sôi xong để nguội 3–5 phút là đạt chuẩn."
       },
       {
-        num: "04", icon: "⏱️", title: "Hãm trà",
+        num: "04", icon: "timer", title: "Hãm trà",
         desc: "Đậy nắp hãm 20–30 giây cho lần đầu. Các lần sau có thể tăng thêm 10 giây mỗi lần.",
         tip: "Trà Thanh Chương có thể pha được 4–5 lần."
       },
       {
-        num: "05", icon: "🍵", title: "Rót & thưởng thức",
+        num: "05", icon: "cup", title: "Rót & thưởng thức",
         desc: "Rót đều ra chén theo vòng tròn để đồng đều màu sắc. Uống khi còn ấm để cảm nhận hậu vị ngọt thanh.",
         tip: "Dùng chén nhỏ để trà không nguội nhanh."
       },
       {
-        num: "06", icon: "📦", title: "Bảo quản đúng cách",
+        num: "06", icon: "package", title: "Bảo quản đúng cách",
         desc: "Giữ trà trong hộp kín, tránh ánh sáng và độ ẩm. Không để gần thực phẩm có mùi mạnh.",
         tip: "Dùng hết trong 6 tháng sau khi mở để giữ hương tốt nhất."
       },
@@ -781,7 +834,11 @@ function Storefront() {
             fontSize: 12, fontWeight: 900, color: "#fff", flexShrink: 0,
             boxShadow: "0 4px 12px rgba(31,122,54,0.3)"
           }}>{step.num}</div>
-          <span style={{ fontSize: 28 }}>{step.icon}</span>
+          <span style={{
+            width: 44, height: 44, borderRadius: 12,
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            color: "#1f7a36", background: "#eef8ed", border: "1px solid #dcefd9"
+          }}><TeaGuideIcon name={step.icon} /></span>
         </div>
 
         <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#174421" }}>{step.title}</h3>
@@ -792,7 +849,7 @@ function Storefront() {
           fontSize: 12, color: "#1f7a36", display: "flex", gap: 6, alignItems: "flex-start",
           borderLeft: "3px solid #2d9e4e"
         }}>
-          <span style={{ flexShrink: 0 }}>💡</span>
+          <span style={{ flexShrink: 0, display: "inline-flex", marginTop: 1 }}><TeaGuideIcon name="tip" size={15} /></span>
           <span>{step.tip}</span>
         </div>
       </div>
