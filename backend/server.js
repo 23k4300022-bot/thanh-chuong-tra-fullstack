@@ -443,7 +443,7 @@ async function sendAftercareEmail(orderId) {
     const spendingResult = await poolPromise.query(
       `SELECT COALESCE(SUM(total_amount),0) AS total_spent, COUNT(*) AS paid_orders
        FROM orders WHERE LOWER(customer_email)=LOWER($1)
-       AND payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản')`,
+       AND payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản','Đã giao COD và thu tiền')`,
       [order.customer_email]
     );
     const totalSpent = Number(spendingResult.rows[0].total_spent || 0);
@@ -1246,19 +1246,44 @@ app.get("/api/admin/chat-messages", async (req, res) => {
   }
 });
 
+app.put("/api/admin/orders/:id/confirm-cod", async (req, res) => {
+  try {
+    const orderId = Number(req.params.id);
+    if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ message: "Mã đơn không hợp lệ" });
+    let result = await poolPromise.query(
+      `UPDATE orders SET payment_status=$1
+       WHERE id=$2 AND payment_method='COD' AND payment_status='Thanh toán khi nhận hàng'
+       RETURNING *`,
+      ["Đã giao COD và thu tiền", orderId]
+    );
+    if (!result.rows.length) {
+      result = await poolPromise.query(`SELECT * FROM orders WHERE id=$1 AND payment_method='COD' LIMIT 1`, [orderId]);
+      if (!result.rows.length) return res.status(404).json({ message: "Không tìm thấy đơn COD" });
+      if (result.rows[0].payment_status !== "Đã giao COD và thu tiền") {
+        return res.status(409).json({ message: `Không thể xác nhận đơn ở trạng thái: ${result.rows[0].payment_status}` });
+      }
+    }
+    await sendAftercareEmail(orderId);
+    res.json({ ...result.rows[0], payment_status: "Đã giao COD và thu tiền", message: "Đã xác nhận COD và gửi email hậu mãi" });
+  } catch (error) {
+    console.error("Lỗi xác nhận COD:", error.message);
+    res.status(500).json({ message: "Không xác nhận được đơn COD", error: error.message });
+  }
+});
+
 app.get("/api/admin/loyal-customers", async (req, res) => {
   try {
     const result = await poolPromise.query(`
       SELECT LOWER(customer_email) AS customer_email,
              (ARRAY_AGG(customer_name ORDER BY created_at DESC))[1] AS customer_name,
              (ARRAY_AGG(phone ORDER BY created_at DESC))[1] AS phone,
-             COUNT(*) FILTER (WHERE payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản'))::int AS paid_orders,
-             COALESCE(SUM(total_amount) FILTER (WHERE payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản')),0) AS total_spent,
-             MAX(created_at) FILTER (WHERE payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản')) AS last_order_at
+             COUNT(*) FILTER (WHERE payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản','Đã giao COD và thu tiền'))::int AS paid_orders,
+             COALESCE(SUM(total_amount) FILTER (WHERE payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản','Đã giao COD và thu tiền')),0) AS total_spent,
+             MAX(created_at) FILTER (WHERE payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản','Đã giao COD và thu tiền')) AS last_order_at
       FROM orders
       WHERE customer_email IS NOT NULL AND customer_email <> ''
       GROUP BY LOWER(customer_email)
-      HAVING COUNT(*) FILTER (WHERE payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản')) > 0
+      HAVING COUNT(*) FILTER (WHERE payment_status IN ('Đã thanh toán VNPay Sandbox','Đã thanh toán chuyển khoản','Đã giao COD và thu tiền')) > 0
       ORDER BY total_spent DESC
     `);
     res.json(result.rows.map(customer => ({

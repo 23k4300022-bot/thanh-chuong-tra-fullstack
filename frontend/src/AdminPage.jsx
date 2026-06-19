@@ -48,6 +48,10 @@ const formatDate = (value) => {
 };
 
 const normalize = (value) => String(value ?? "").trim().toLowerCase();
+const isPaidStatus = value => {
+  const status = normalize(value);
+  return status.includes("đã thanh toán") || status.includes("đã giao cod và thu tiền");
+};
 
 // Tính giá sau giảm
 function calcSalePrice(price, discountPercent, discountAmount) {
@@ -64,7 +68,7 @@ function RevenueChart({ orders }) {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const paidOrders = orders.filter((o) =>
-    normalize(o.payment_status).includes("đã thanh toán")
+    isPaidStatus(o.payment_status)
   );
 
   const years = useMemo(() => {
@@ -257,7 +261,7 @@ function TopProducts({ orders, products }) {
 
 function getOrderStatusClass(status) {
   const normalized = normalize(status);
-  if (normalized.includes("đã thanh toán")) return "is-paid";
+  if (isPaidStatus(normalized)) return "is-paid";
   if (normalized.includes("thất bại") || normalized.includes("hủy")) return "is-failed";
   if (normalized.includes("chờ")) return "is-pending";
   return "is-cod";
@@ -533,6 +537,7 @@ function AdminPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [productFilter, setProductFilter] = useState("all"); // all | hot | discount | low_stock
+  const [confirmingCodId, setConfirmingCodId] = useState(null);
 
   const fetchAdminData = async () => {
     setLoading(true);
@@ -585,7 +590,7 @@ function AdminPage() {
   };
 
   const paidOrders = useMemo(
-    () => orders.filter((o) => normalize(o.payment_status).includes("đã thanh toán")),
+    () => orders.filter((o) => isPaidStatus(o.payment_status)),
     [orders]
   );
 
@@ -626,8 +631,8 @@ function AdminPage() {
       const status = normalize(order.payment_status);
       const matchesStatus =
         orderFilter === "all" ||
-        (orderFilter === "paid" && status.includes("đã thanh toán")) ||
-        (orderFilter === "unpaid" && !status.includes("đã thanh toán")) ||
+        (orderFilter === "paid" && isPaidStatus(status)) ||
+        (orderFilter === "unpaid" && !isPaidStatus(status)) ||
         (orderFilter === "cod" && normalize(order.payment_method).includes("cod")) ||
         (orderFilter === "vnpay" && normalize(order.payment_method).includes("vnpay"));
       const matchesSearch =
@@ -739,6 +744,24 @@ function AdminPage() {
     const res=await fetch(`${API_URL}/api/admin/news-comments/${comment.id}`,{method:"DELETE"});
     if(res.ok)setNewsComments(prev=>prev.filter(c=>c.id!==comment.id));
     else alert("Không xóa được bình luận");
+  };
+
+  const confirmCodDelivered = async order => {
+    if (!confirm(`Xác nhận đơn #${order.id} đã giao hàng và đã thu đủ tiền?`)) return;
+    setConfirmingCodId(order.id);
+    try {
+      const response = await fetch(`${API_URL}/api/admin/orders/${order.id}/confirm-cod`, { method: "PUT" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Không xác nhận được đơn COD");
+      setOrders(current => current.map(item => item.id === order.id ? { ...item, payment_status: data.payment_status } : item));
+      const customers = await fetchJson("/api/admin/loyal-customers");
+      setLoyalCustomers(Array.isArray(customers) ? customers : []);
+      alert(data.message);
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setConfirmingCodId(null);
+    }
   };
 
   if (!isLoggedIn) {
@@ -941,7 +964,7 @@ function AdminPage() {
                     <tr>
                       <th>Mã đơn</th><th>Khách hàng</th><th>Điện thoại</th>
                       <th>Địa chỉ</th><th>Tổng tiền</th><th>Thanh toán</th>
-                      <th>Trạng thái</th><th>Ngày đặt</th>
+                      <th>Trạng thái</th><th>Ngày đặt</th><th>Hành động</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -955,6 +978,13 @@ function AdminPage() {
                         <td>{order.payment_method}</td>
                         <td><span className={`admin-status ${getOrderStatusClass(order.payment_status)}`}>{order.payment_status}</span></td>
                         <td>{formatDate(order.created_at)}</td>
+                        <td>
+                          {order.payment_method === "COD" && order.payment_status === "Thanh toán khi nhận hàng" ? (
+                            <button className="admin-row-btn" disabled={confirmingCodId === order.id} onClick={() => confirmCodDelivered(order)}>
+                              {confirmingCodId === order.id ? "Đang xác nhận..." : "Đã giao & thu tiền"}
+                            </button>
+                          ) : <span style={{color:"#98a096"}}>—</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
