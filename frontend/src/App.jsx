@@ -941,6 +941,18 @@ function Storefront() {
             <h2>Tin tức & kiến thức về trà</h2>
             <p>Khám phá cách pha, bảo quản và những câu chuyện mộc mạc từ vùng chè Thanh Chương.</p>
           </div>
+          <div className="news-tabs" aria-label="Danh mục tin tức">
+            {newsSubLinks.map(category => (
+              <button
+                key={category.label}
+                type="button"
+                className={activeNewsCategory === category.label ? "active" : ""}
+                onClick={() => setActiveNewsCategory(category.label)}
+              >
+                {category.label}
+              </button>
+            ))}
+          </div>
           <div className="news-grid">
             {filteredNews.slice(0,6).map((article,index)=>(
               <article className={`news-card${index===0&&article.is_featured?" featured":""}`} key={article.id}>
