@@ -628,6 +628,43 @@ app.post("/api/contacts", async (req, res) => {
 
 /* ===================== ORDERS COD / TEST BANK ===================== */
 
+async function reserveOrderStock(client, items) {
+  for (const item of items) {
+    const productId = Number(item.product_id);
+    const quantity = Number(item.quantity);
+
+    if (!Number.isInteger(productId) || !Number.isInteger(quantity) || quantity <= 0) {
+      const error = new Error("Sản phẩm hoặc số lượng không hợp lệ");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const updated = await client.query(
+      `UPDATE products
+       SET sold_count = sold_count + $1,
+           stock = stock - $1
+       WHERE id = $2 AND stock >= $1
+       RETURNING id`,
+      [quantity, productId]
+    );
+
+    if (updated.rows.length === 0) {
+      const productResult = await client.query(
+        `SELECT name, stock FROM products WHERE id = $1 LIMIT 1`,
+        [productId]
+      );
+      const product = productResult.rows[0];
+      const error = new Error(
+        product
+          ? `${product.name} chỉ còn ${Number(product.stock)} sản phẩm trong kho`
+          : "Sản phẩm không còn tồn tại"
+      );
+      error.statusCode = product ? 409 : 404;
+      throw error;
+    }
+  }
+}
+
 app.post("/api/orders", async (req, res) => {
   const {
     customer_name, customer_email, phone, address, note,
@@ -664,6 +701,8 @@ app.post("/api/orders", async (req, res) => {
       totalAmount += Number(item.price) * Number(item.quantity);
     }
 
+    await reserveOrderStock(client, items);
+
     const orderResult = await client.query(
       `INSERT INTO orders 
        (customer_name, customer_email, phone, address, note, total_amount, payment_method, payment_status, test_card_number)
@@ -679,16 +718,6 @@ app.post("/api/orders", async (req, res) => {
       await client.query(
         `INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)`,
         [orderId, item.product_id, item.quantity, item.price]
-      );
-    }
-
-    for (const item of items) {
-      await client.query(
-        `UPDATE products
-         SET sold_count = sold_count + $1,
-             stock      = GREATEST(stock - $1, 0)
-         WHERE id = $2`,
-        [Number(item.quantity), item.product_id]
       );
     }
 
@@ -720,7 +749,10 @@ app.post("/api/orders", async (req, res) => {
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Lỗi tạo đơn hàng:", error);
-    res.status(500).json({ message: "Lỗi tạo đơn hàng", error: error.message });
+    res.status(error.statusCode || 500).json({
+      message: error.statusCode ? error.message : "Lỗi tạo đơn hàng",
+      error: error.message,
+    });
   } finally {
     client.release();
   }
@@ -753,6 +785,8 @@ app.post("/api/create-vnpay-payment", async (req, res) => {
       totalAmount += Number(item.price) * Number(item.quantity);
     }
 
+    await reserveOrderStock(client, items);
+
     const orderResult = await client.query(
       `INSERT INTO orders
        (customer_name, customer_email, phone, address, note, total_amount, payment_method, payment_status, test_card_number, transaction_code, bank_code)
@@ -768,16 +802,6 @@ app.post("/api/create-vnpay-payment", async (req, res) => {
       await client.query(
         `INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)`,
         [orderId, item.product_id, item.quantity, item.price]
-      );
-    }
-
-    for (const item of items) {
-      await client.query(
-        `UPDATE products
-         SET sold_count = sold_count + $1,
-             stock      = GREATEST(stock - $1, 0)
-         WHERE id = $2`,
-        [Number(item.quantity), item.product_id]
       );
     }
 
@@ -813,7 +837,10 @@ app.post("/api/create-vnpay-payment", async (req, res) => {
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Lỗi tạo VNPay:", error);
-    res.status(500).json({ message: "Không tạo được URL thanh toán VNPay", error: error.message });
+    res.status(error.statusCode || 500).json({
+      message: error.statusCode ? error.message : "Không tạo được URL thanh toán VNPay",
+      error: error.message,
+    });
   } finally {
     client.release();
   }

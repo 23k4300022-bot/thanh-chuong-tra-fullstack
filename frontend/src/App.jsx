@@ -411,8 +411,17 @@ function Storefront() {
     const discPct = Number(product.discount_percent || 0);
     const discAmt = Number(product.discount_amount || 0);
     const finalPrice = calcSalePrice(product.price, discPct, discAmt);
+    const stock = Number(product.stock ?? 999);
 
     const existing = cart.find(item => item.id === product.id);
+    if (stock <= 0) {
+      alert(`${product.name} hiện đã hết hàng.`);
+      return;
+    }
+    if (existing && existing.quantity >= stock) {
+      alert(`${product.name} chỉ còn ${stock} sản phẩm trong kho.`);
+      return;
+    }
     if (existing) {
       setCart(cart.map(item =>
         item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
@@ -427,7 +436,18 @@ function Storefront() {
     }
   };
 
-  const increaseQty = id => setCart(cart.map(item => item.id === id ? { ...item, quantity: item.quantity + 1 } : item));
+  const increaseQty = id => {
+    const item = cart.find(cartItem => cartItem.id === id);
+    if (!item) return;
+    const stock = Number(item.stock ?? 999);
+    if (item.quantity >= stock) {
+      alert(`${item.name} chỉ còn ${stock} sản phẩm trong kho.`);
+      return;
+    }
+    setCart(cart.map(cartItem =>
+      cartItem.id === id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem
+    ));
+  };
   const decreaseQty = id => setCart(cart.map(item => item.id === id ? { ...item, quantity: item.quantity - 1 } : item).filter(item => item.quantity > 0));
   const removeFromCart = id => setCart(cart.filter(item => item.id !== id));
 

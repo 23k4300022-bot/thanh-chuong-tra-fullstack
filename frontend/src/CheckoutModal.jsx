@@ -95,6 +95,7 @@ const STYLES = `
 .co-item-sub   { font-size:11px; color:#999; margin-bottom:4px; }
 .co-item-price { font-size:12px; color:#b96b00; font-weight:700; }
 .co-item-total { font-size:13px; font-weight:800; color:#1f7a36; }
+.co-item-stock { font-size:10px; color:#c62828; font-weight:700; margin-top:4px; }
 
 .co-qty-ctrl { display:flex; align-items:center; gap:6px; }
 .co-qty-btn {
@@ -103,6 +104,7 @@ const STYLES = `
   display:flex; align-items:center; justify-content:center; transition: all .15s;
 }
 .co-qty-btn:hover { background:#1f7a36; color:#fff; border-color:#1f7a36; }
+.co-qty-btn:disabled { background:#f3f3f3; color:#aaa; border-color:#e5e5e5; cursor:not-allowed; }
 .co-qty-num { font-weight:800; font-size:14px; min-width:20px; text-align:center; color:#1a2e1c; }
 .co-remove {
   width:28px; height:28px; border:1px solid #fce4e4; background:#fff9f9;
@@ -828,11 +830,20 @@ export default function CheckoutModal({
                           <div className="co-item-name">{item.name}</div>
                           <div className="co-item-sub">{item.weight||""}</div>
                           <div className="co-item-price">{fmt(item.price)} × {item.quantity} = <span className="co-item-total">{fmt(item.price*item.quantity)}</span></div>
+                          {Number(item.stock ?? 999) < 999 && item.quantity >= Number(item.stock ?? 999) && (
+                            <div className="co-item-stock">Đã đạt số lượng tồn kho ({item.stock})</div>
+                          )}
                         </div>
                         <div className="co-qty-ctrl">
                           <button className="co-qty-btn" type="button" onClick={()=>onDec(item.id)}>−</button>
                           <span className="co-qty-num">{item.quantity}</span>
-                          <button className="co-qty-btn" type="button" onClick={()=>onInc(item.id)}>+</button>
+                          <button
+                            className="co-qty-btn"
+                            type="button"
+                            onClick={()=>onInc(item.id)}
+                            disabled={item.quantity >= Number(item.stock ?? 999)}
+                            title={item.quantity >= Number(item.stock ?? 999) ? "Đã đạt số lượng tồn kho" : "Tăng số lượng"}
+                          >+</button>
                         </div>
                         <button className="co-remove" type="button" onClick={()=>onRemove(item.id)}>✕</button>
                       </div>
