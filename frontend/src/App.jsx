@@ -666,7 +666,8 @@ function Storefront() {
         }
         .mobile-nav-overlay {
           display: none; position: fixed; inset: 0; background: rgba(13,46,21,0.97); z-index: 1000;
-          flex-direction: column; align-items: center; justify-content: center; gap: 0;
+          flex-direction: column; align-items: center; justify-content: flex-start; gap: 0;
+          padding: 76px 22px 34px; overflow-y: auto; overscroll-behavior: contain;
         }
         .mobile-nav-overlay.open { display: flex; }
         .mobile-nav-overlay a {
@@ -676,6 +677,14 @@ function Storefront() {
         }
         .mobile-nav-overlay a:first-child { border-top: 1px solid rgba(255,255,255,0.1); }
         .mobile-nav-overlay a:hover { background: rgba(255,255,255,0.08); }
+        .mobile-nav-overlay .mobile-subnav {
+          display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;
+          padding: 8px; background: rgba(255,255,255,.055); border-radius: 0 0 14px 14px;
+        }
+        .mobile-nav-overlay .mobile-subnav a {
+          min-width: 0; padding: 11px 5px; border: 0; border-radius: 9px;
+          font-size: 13px; line-height: 1.3; white-space: normal;
+        }
         .mobile-nav-actions {
           display: flex; flex-direction: column; align-items: center;
           gap: 12px; margin-top: 28px; width: 100%; padding: 0 32px;
@@ -685,14 +694,14 @@ function Storefront() {
         .mobile-nav-actions .btn-cart { background: #1f7a36; color: #fff; }
         .mobile-nav-actions .btn-logout { background: rgba(255,255,255,0.1); color: #a5d6a7; font-size: 13px; }
 
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
           .hamburger { display: flex; }
           .mobile-cart-btn { display: flex; }
           .header-main-row > .cart-button { display: none !important; }
           .main-nav { display: none !important; }
           .header-actions { display: none !important; }
         }
-        @media (min-width: 769px) {
+        @media (min-width: 1025px) {
           .mobile-nav-overlay { display: none !important; }
           .mobile-cart-btn { display: none !important; }
         }
@@ -923,6 +932,11 @@ function Storefront() {
             <p className="eyebrow">Hộp quà trà</p>
             <h2>Quà biếu Thanh Chương – trang nhã, gần gũi, ý nghĩa</h2>
             <p>Khu vực hộp quà được tách riêng để khách dễ chọn sản phẩm biếu Tết, biếu thầy cô, đối tác, người thân hoặc khách hàng.</p>
+            <div className="gift-highlights">
+              <span><b>01</b> Gói quà chỉn chu</span>
+              <span><b>02</b> Thiệp tặng miễn phí</span>
+              <span><b>03</b> Tư vấn theo ngân sách</span>
+            </div>
           </div>
           <div className="gift-grid">
             {giftProducts.length > 0 ? giftProducts.map(product => {
@@ -935,7 +949,7 @@ function Storefront() {
               const outOfStock = stock === 0;
               return (
                 <article className="gift-card" key={product.id}>
-                  <div style={{ position: "relative" }}>
+                  <div className="gift-image" style={{ position: "relative" }}>
                     <img src={product.image_url} alt={product.name} />
                     <div className="badges-top-left">
                       {hot && (
@@ -952,7 +966,7 @@ function Storefront() {
                       )}
                     </div>
                   </div>
-                  <div>
+                  <div className="gift-body">
                     <h3>{product.name}</h3>
                     <p>{product.description}</p>
                     {hasDiscount ? (
