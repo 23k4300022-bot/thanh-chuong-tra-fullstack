@@ -189,6 +189,10 @@ function Storefront() {
   const [products, setProducts] = useState([]);
   const [news, setNews] = useState([]);
   const [selectedNews, setSelectedNews] = useState(null);
+  const [newsComments,setNewsComments]=useState([]);
+  const [commentText,setCommentText]=useState("");
+  const [commentMessage,setCommentMessage]=useState("");
+  const [commentSubmitting,setCommentSubmitting]=useState(false);
   const [cart, setCart] = useState([]);
   const [activeCategory, setActiveCategory] = useState("Tất cả");
   const [searchQuery, setSearchQuery] = useState("");
@@ -302,13 +306,31 @@ function Storefront() {
 
   const openNewsArticle = async article => {
     try {
-      const res = await fetch(`${API_URL}/api/news/${article.slug}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Không tải được bài viết");
-      setSelectedNews(data);
+      setCommentText("");setCommentMessage("");
+      const [articleRes,commentsRes] = await Promise.all([
+        fetch(`${API_URL}/api/news/${article.slug}`),
+        fetch(`${API_URL}/api/news/${article.slug}/comments`),
+      ]);
+      const data = await articleRes.json();
+      if (!articleRes.ok) throw new Error(data.message || "Không tải được bài viết");
+      const comments=commentsRes.ok?await commentsRes.json():[];
+      setSelectedNews(data);setNewsComments(Array.isArray(comments)?comments:[]);
     } catch (error) {
       alert(error.message);
     }
+  };
+
+  const submitNewsComment=async e=>{
+    e.preventDefault();
+    if(!currentUser){setSelectedNews(null);setAuthMode("login");setShowAuth(true);return;}
+    if(commentText.trim().length<2)return;
+    setCommentSubmitting(true);setCommentMessage("");
+    try{
+      const res=await fetch(`${API_URL}/api/news/${selectedNews.slug}/comments`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({customer_name:currentUser.name,customer_email:currentUser.email,content:commentText})});
+      const data=await res.json();
+      if(!res.ok)throw new Error(data.message||"Không gửi được bình luận");
+      setCommentText("");setCommentMessage(data.message);
+    }catch(error){setCommentMessage(error.message);}finally{setCommentSubmitting(false);}
   };
 
   const giftProducts = useMemo(() => products.filter(item => String(item.category || "").toLowerCase().includes("hộp quà")), [products]);
@@ -1073,6 +1095,23 @@ function Storefront() {
               <h2>{selectedNews.title}</h2>
               {selectedNews.summary&&<p className="news-detail-summary">{selectedNews.summary}</p>}
               <div className="news-detail-text">{selectedNews.content}</div>
+              <section className="news-comments">
+                <h3>Bình luận ({newsComments.length})</h3>
+                {currentUser?(
+                  <form className="news-comment-form" onSubmit={submitNewsComment}>
+                    <div>Đang bình luận với tên <strong>{currentUser.name}</strong></div>
+                    <textarea rows="3" maxLength="1000" value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder="Chia sẻ cảm nhận của bạn về bài viết…" required/>
+                    <div className="news-comment-form-foot"><small>Bình luận sẽ hiển thị sau khi được duyệt.</small><button disabled={commentSubmitting}>{commentSubmitting?"Đang gửi...":"Gửi bình luận"}</button></div>
+                    {commentMessage&&<p className="news-comment-message">{commentMessage}</p>}
+                  </form>
+                ):(
+                  <button className="news-comment-login" type="button" onClick={()=>{setSelectedNews(null);setAuthMode("login");setShowAuth(true);}}>Đăng nhập để bình luận</button>
+                )}
+                <div className="news-comment-list">
+                  {newsComments.map(comment=><article className="news-comment" key={comment.id}><div className="news-comment-avatar">{comment.customer_name?.trim()?.[0]?.toUpperCase()||"K"}</div><div><div className="news-comment-head"><strong>{comment.customer_name}</strong><time>{formatNewsDate(comment.created_at)}</time></div><p>{comment.content}</p></div></article>)}
+                  {newsComments.length===0&&<p className="news-no-comments">Chưa có bình luận được duyệt. Hãy là người đầu tiên chia sẻ cảm nhận.</p>}
+                </div>
+              </section>
             </div>
           </article>
         </div>

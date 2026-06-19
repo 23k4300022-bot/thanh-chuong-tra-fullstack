@@ -37,6 +37,19 @@ async function ensureNewsTable() {
     )
   `);
   await poolPromise.query(`CREATE INDEX IF NOT EXISTS news_status_date_idx ON news(status, published_at DESC)`);
+  await poolPromise.query(`
+    CREATE TABLE IF NOT EXISTS news_comments (
+      id BIGSERIAL PRIMARY KEY,
+      news_id BIGINT NOT NULL REFERENCES news(id) ON DELETE CASCADE,
+      customer_name VARCHAR(120) NOT NULL,
+      customer_email VARCHAR(180) NOT NULL,
+      content TEXT NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','hidden')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await poolPromise.query(`CREATE INDEX IF NOT EXISTS news_comments_article_idx ON news_comments(news_id,status,created_at DESC)`);
   const seedArticles = [
     ["Cách pha trà xanh không bị đắng", "cach-pha-tra-xanh-khong-bi-dang", "Những nguyên tắc đơn giản về lượng trà, nhiệt độ nước và thời gian hãm giúp chén trà xanh thơm dịu, hậu ngọt.", "Một chén trà ngon bắt đầu từ nước sạch và ấm trà đã được làm nóng. Với ấm 150–200ml, bạn nên dùng khoảng 5–8g trà.\n\nNước pha phù hợp ở khoảng 80–90°C. Nước quá sôi dễ làm vị trà gắt và mất đi hương thơm tự nhiên. Hãm trà từ 20–30 giây cho lần đầu, sau đó tăng nhẹ thời gian ở những lần pha tiếp theo.\n\nKhi rót, hãy rót đều ra các chén để màu nước và hương vị đồng nhất. Thưởng thức khi trà còn ấm để cảm nhận rõ hậu vị ngọt thanh.", "https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=1200&q=85", "Cách pha trà", true],
     ["Trà Thanh Chương có gì đặc biệt?", "tra-thanh-chuong-co-gi-dac-biet", "Khám phá vùng chè xứ Nghệ và nét mộc mạc tạo nên hương vị riêng của trà Thanh Chương.", "Thanh Chương, Nghệ An có khí hậu và thổ nhưỡng phù hợp cho cây chè phát triển. Những đồi chè xanh bên sông và bàn tay chăm sóc của người dân địa phương tạo nên nguồn nguyên liệu mang hương vị mộc mạc đặc trưng.\n\nTrà Thanh Chương thường có màu nước xanh vàng, hương thơm tự nhiên, vị chát dịu và hậu ngọt. Đây là thức uống gần gũi trong đời sống hằng ngày và cũng là món quà mang đậm dấu ấn quê hương xứ Nghệ.", "https://images.unsplash.com/photo-1563911892437-1feda0179e1b?auto=format&fit=crop&w=1200&q=85", "Câu chuyện thương hiệu", true],
@@ -382,6 +395,40 @@ app.get("/api/news/:slug", async (req, res) => {
   }
 });
 
+app.get("/api/news/:slug/comments", async (req, res) => {
+  try {
+    const result = await poolPromise.query(
+      `SELECT c.id,c.customer_name,c.content,c.created_at
+       FROM news_comments c JOIN news n ON n.id=c.news_id
+       WHERE n.slug=$1 AND n.status='published' AND c.status='approved'
+       ORDER BY c.created_at DESC`, [req.params.slug]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi lấy bình luận", error: error.message });
+  }
+});
+
+app.post("/api/news/:slug/comments", async (req, res) => {
+  try {
+    const customerName = String(req.body.customer_name || "").trim().slice(0,120);
+    const customerEmail = String(req.body.customer_email || "").trim().toLowerCase().slice(0,180);
+    const content = String(req.body.content || "").trim().slice(0,1000);
+    if (customerName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail) || content.length < 2)
+      return res.status(400).json({ message: "Thông tin bình luận không hợp lệ" });
+    const article = await poolPromise.query(`SELECT id FROM news WHERE slug=$1 AND status='published'`, [req.params.slug]);
+    if (!article.rows.length) return res.status(404).json({ message: "Không tìm thấy bài viết" });
+    const result = await poolPromise.query(
+      `INSERT INTO news_comments(news_id,customer_name,customer_email,content)
+       VALUES($1,$2,$3,$4) RETURNING id,customer_name,content,status,created_at`,
+      [article.rows[0].id, customerName, customerEmail, content]
+    );
+    res.status(201).json({ ...result.rows[0], message:"Bình luận đã gửi và đang chờ duyệt" });
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi gửi bình luận", error: error.message });
+  }
+});
+
 app.get("/api/admin/news", async (req, res) => {
   try {
     const result = await poolPromise.query(`SELECT * FROM news ORDER BY updated_at DESC`);
@@ -433,6 +480,42 @@ app.delete("/api/admin/news/:id", async (req, res) => {
     res.json({ message: "Đã xóa bài viết" });
   } catch (error) {
     res.status(500).json({ message: "Lỗi xóa bài viết", error: error.message });
+  }
+});
+
+app.get("/api/admin/news-comments", async (req, res) => {
+  try {
+    const result = await poolPromise.query(
+      `SELECT c.*,n.title AS news_title,n.slug AS news_slug FROM news_comments c
+       JOIN news n ON n.id=c.news_id ORDER BY c.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ message:"Lỗi lấy bình luận quản trị", error:error.message });
+  }
+});
+
+app.put("/api/admin/news-comments/:id", async (req, res) => {
+  try {
+    const status = ["pending","approved","hidden"].includes(req.body.status) ? req.body.status : null;
+    if (!status) return res.status(400).json({ message:"Trạng thái không hợp lệ" });
+    const result = await poolPromise.query(
+      `UPDATE news_comments SET status=$1,updated_at=NOW() WHERE id=$2 RETURNING *`, [status,req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ message:"Không tìm thấy bình luận" });
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ message:"Lỗi cập nhật bình luận", error:error.message });
+  }
+});
+
+app.delete("/api/admin/news-comments/:id", async (req, res) => {
+  try {
+    const result = await poolPromise.query(`DELETE FROM news_comments WHERE id=$1 RETURNING id`,[req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ message:"Không tìm thấy bình luận" });
+    res.json({ message:"Đã xóa bình luận" });
+  } catch (error) {
+    res.status(500).json({ message:"Lỗi xóa bình luận", error:error.message });
   }
 });
 

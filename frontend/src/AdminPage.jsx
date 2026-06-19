@@ -485,6 +485,7 @@ function AdminPage() {
   const [contacts, setContacts] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
   const [news,setNews]=useState([]);
+  const [newsComments,setNewsComments]=useState([]);
   const [editingNews,setEditingNews]=useState(null);
   const [showNewsEditor,setShowNewsEditor]=useState(false);
   const [loading, setLoading] = useState(false);
@@ -503,6 +504,7 @@ function AdminPage() {
       ["contacts", "/api/admin/contacts", setContacts],
       ["chat", "/api/admin/chat-messages", setChatMessages],
       ["news", "/api/admin/news", setNews],
+      ["newsComments", "/api/admin/news-comments", setNewsComments],
     ];
     const results = await Promise.allSettled(
       requests.map(async ([, path, setter]) => {
@@ -623,6 +625,7 @@ function AdminPage() {
   }, [chatMessages, searchTerm]);
 
   const filteredNews=useMemo(()=>{const search=normalize(searchTerm);return news.filter(n=>!search||[n.title,n.category,n.summary,n.status].some(v=>normalize(v).includes(search)));},[news,searchTerm]);
+  const filteredNewsComments=useMemo(()=>{const search=normalize(searchTerm);return newsComments.filter(c=>!search||[c.customer_name,c.customer_email,c.content,c.news_title,c.status].some(v=>normalize(v).includes(search)));},[newsComments,searchTerm]);
 
   const getTabCount = (tab) => {
     if (tab === "orders") return orders.length;
@@ -630,6 +633,7 @@ function AdminPage() {
     if (tab === "contacts") return contacts.length;
     if (tab === "chat") return chatMessages.length;
     if (tab === "news") return news.length;
+    if (tab === "newsComments") return newsComments.filter(c=>c.status==="pending").length;
     return null;
   };
 
@@ -658,11 +662,26 @@ function AdminPage() {
         ["ID", "Khách hàng", "Email", "Câu hỏi", "Phản hồi chatbot", "Thời gian"],
         ...filteredChatMessages.map((m) => [m.id, m.customer_name, m.customer_email, m.user_message, m.bot_reply, formatDate(m.created_at)]),
       ]);
-    } else downloadCsv("tin-tuc-thanh-chuong-tra.csv",[["ID","Tiêu đề","Danh mục","Trạng thái","Nổi bật","Ngày"],...filteredNews.map(n=>[n.id,n.title,n.category,n.status,n.is_featured?"Có":"Không",formatDate(n.created_at)])]);
+    } else if(activeTab==="news") downloadCsv("tin-tuc-thanh-chuong-tra.csv",[["ID","Tiêu đề","Danh mục","Trạng thái","Nổi bật","Ngày"],...filteredNews.map(n=>[n.id,n.title,n.category,n.status,n.is_featured?"Có":"Không",formatDate(n.created_at)])]);
+    else downloadCsv("binh-luan-tin-tuc.csv",[["ID","Bài viết","Khách hàng","Email","Nội dung","Trạng thái","Ngày"],...filteredNewsComments.map(c=>[c.id,c.news_title,c.customer_name,c.customer_email,c.content,c.status,formatDate(c.created_at)])]);
   };
 
   const handleProductSaved = (updatedProduct) => {
     setProducts((prev) => prev.map((p) => p.id === updatedProduct.id ? updatedProduct : p));
+  };
+
+  const updateNewsComment=async(id,status)=>{
+    const res=await fetch(`${API_URL}/api/admin/news-comments/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status})});
+    const data=await res.json();
+    if(!res.ok){alert(data.message||"Không cập nhật được bình luận");return;}
+    setNewsComments(prev=>prev.map(c=>c.id===id?{...c,...data}:c));
+  };
+
+  const deleteNewsComment=async comment=>{
+    if(!confirm(`Xóa bình luận của ${comment.customer_name}?`))return;
+    const res=await fetch(`${API_URL}/api/admin/news-comments/${comment.id}`,{method:"DELETE"});
+    if(res.ok)setNewsComments(prev=>prev.filter(c=>c.id!==comment.id));
+    else alert("Không xóa được bình luận");
   };
 
   if (!isLoggedIn) {
@@ -688,6 +707,7 @@ function AdminPage() {
     { key: "orders", label: "Đơn hàng", icon: "🛒" },
     { key: "products", label: "Sản phẩm", icon: "🍃" },
     { key: "news", label: "Tin tức", icon: "📰" },
+    { key: "newsComments", label: "Bình luận", icon: "💭" },
     { key: "contacts", label: "Liên hệ", icon: "✉️" },
     { key: "chat", label: "Chatbot", icon: "💬" },
   ];
@@ -809,6 +829,7 @@ function AdminPage() {
                   {activeTab === "orders" && "🛒 Danh sách đơn hàng"}
                   {activeTab === "products" && "🍃 Danh sách sản phẩm"}
                   {activeTab === "news" && "📰 Quản lý tin tức"}
+                  {activeTab === "newsComments" && "💭 Bình luận bài viết"}
                   {activeTab === "contacts" && "✉️ Liên hệ khách hàng"}
                   {activeTab === "chat" && "💬 Tin nhắn chatbot"}
                 </h2>
@@ -1009,6 +1030,12 @@ function AdminPage() {
               <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>ID</th><th>Bài viết</th><th>Danh mục</th><th>Trạng thái</th><th>Nổi bật</th><th>Cập nhật</th><th>Hành động</th></tr></thead><tbody>
                 {filteredNews.map(article=><tr key={article.id}><td>{article.id}</td><td><strong>{article.title}</strong><small>{article.summary}</small></td><td>{article.category}</td><td><span className={`admin-status ${article.status==="published"?"is-paid":"is-pending"}`}>{article.status==="published"?"Đã xuất bản":"Bản nháp"}</span></td><td>{article.is_featured?"⭐ Có":"—"}</td><td>{formatDate(article.updated_at)}</td><td><div style={{display:"flex",gap:6}}><button className="admin-row-btn" onClick={()=>{setEditingNews(article);setShowNewsEditor(true);}}>Sửa</button><button className="admin-row-btn danger" onClick={async()=>{if(!confirm(`Xóa bài “${article.title}”?`))return;const res=await fetch(`${API_URL}/api/admin/news/${article.id}`,{method:"DELETE"});if(res.ok)setNews(prev=>prev.filter(n=>n.id!==article.id));else alert("Không xóa được bài viết");}}>Xóa</button></div></td></tr>)}
               </tbody></table>{!loading&&filteredNews.length===0&&<p className="admin-empty">Chưa có bài viết phù hợp.</p>}</div>
+            )}
+
+            {activeTab === "newsComments"&&(
+              <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>ID</th><th>Bài viết</th><th>Khách hàng</th><th>Bình luận</th><th>Trạng thái</th><th>Ngày gửi</th><th>Hành động</th></tr></thead><tbody>
+                {filteredNewsComments.map(comment=><tr key={comment.id}><td>{comment.id}</td><td><strong>{comment.news_title}</strong></td><td><strong>{comment.customer_name}</strong><small>{comment.customer_email}</small></td><td style={{maxWidth:300,whiteSpace:"normal"}}>{comment.content}</td><td><span className={`admin-status ${comment.status==="approved"?"is-paid":comment.status==="hidden"?"is-failed":"is-pending"}`}>{comment.status==="approved"?"Đã duyệt":comment.status==="hidden"?"Đã ẩn":"Chờ duyệt"}</span></td><td>{formatDate(comment.created_at)}</td><td><div className="admin-comment-actions">{comment.status!=="approved"&&<button onClick={()=>updateNewsComment(comment.id,"approved")}>Duyệt</button>}{comment.status!=="hidden"&&<button onClick={()=>updateNewsComment(comment.id,"hidden")}>Ẩn</button>}<button className="danger" onClick={()=>deleteNewsComment(comment)}>Xóa</button></div></td></tr>)}
+              </tbody></table>{!loading&&filteredNewsComments.length===0&&<p className="admin-empty">Chưa có bình luận phù hợp.</p>}</div>
             )}
 
             {activeTab === "contacts" && (
