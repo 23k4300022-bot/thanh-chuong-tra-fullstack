@@ -290,9 +290,10 @@ const STYLES = `
 
 /* SUCCESS — COD */
 .co-success {
-  display:none; flex-direction:column; align-items:center; justify-content:center;
-  padding:40px 28px; text-align:center; min-height:480px;
-  overflow-y: auto;
+  display:none; flex:1; min-height:0; flex-direction:column;
+  align-items:center; justify-content:flex-start;
+  padding:40px 28px; text-align:center; overflow-y:auto;
+  overscroll-behavior:contain;
 }
 .co-success.show { display:flex; }
 .co-success-ring {
@@ -300,6 +301,8 @@ const STYLES = `
   display:flex; align-items:center; justify-content:center; font-size:44px; margin-bottom:20px;
   animation:coPopIn .5s cubic-bezier(.34,1.56,.64,1);
 }
+.co-success > .co-success-ring { margin-top:auto; flex-shrink:0; }
+.co-success > .co-success-btn:last-child { margin-bottom:auto; flex-shrink:0; }
 .co-success-ring.green { background:linear-gradient(135deg,#1f7a36,#2d9e4e); box-shadow:0 12px 40px rgba(31,122,54,.35); }
 .co-success-ring.blue  { background:linear-gradient(135deg,#1565c0,#1976d2); box-shadow:0 12px 40px rgba(21,101,192,.3); }
 @keyframes coPopIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
