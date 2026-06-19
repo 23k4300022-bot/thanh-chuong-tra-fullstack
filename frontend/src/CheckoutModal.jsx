@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 const STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap');
@@ -217,14 +219,18 @@ const STYLES = `
 .co-map-search-inp:focus { border-color:#1f7a36; }
 .co-map-search-btn { padding:10px 14px; background:#1f7a36; color:#fff; border:none; border-radius:11px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; transition:background .15s; font-family:'Be Vietnam Pro',sans-serif; }
 .co-map-search-btn:hover { background:#174421; }
-.co-map-wrap { border-radius:14px; overflow:hidden; border:1.5px solid #e0e8dc; height:155px; background:#edf4eb; position:relative; }
-.co-map-placeholder { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:8px; color:#1f7a36; }
-.co-map-placeholder .ico { font-size:30px; }
-.co-map-placeholder p { font-size:11px; color:#888; text-align:center; line-height:1.5; margin:0; }
-.co-map-frame { width:100%; height:100%; border:none; display:none; }
-.co-map-frame.show { display:block; }
-.co-map-addr { background:#f0faf4; border-radius:10px; padding:8px 12px; border:1px solid #c8e6bc; font-size:11px; color:#333; line-height:1.5; display:none; align-items:flex-start; gap:6px; margin-top:7px; }
-.co-map-addr.show { display:flex; }
+.co-map-locate { width:38px; padding:0; font-size:17px; }
+.co-map-wrap { border-radius:14px; overflow:hidden; border:1.5px solid #d3e4ce; height:210px; background:#edf4eb; position:relative; }
+.co-map-canvas { width:100%; height:100%; z-index:1; }
+.co-map-loading { position:absolute; z-index:500; left:50%; top:12px; transform:translateX(-50%); background:rgba(13,46,21,.9); color:#fff; border-radius:99px; padding:7px 12px; font-size:10px; font-weight:700; box-shadow:0 3px 12px rgba(0,0,0,.2); pointer-events:none; }
+.co-map-hint { margin:6px 2px 0; font-size:10px; color:#888; line-height:1.5; }
+.co-map-error { margin-top:7px; padding:7px 10px; border-radius:9px; background:#fff3f3; border:1px solid #ffcaca; color:#b42318; font-size:10px; }
+.co-map-addr { background:#f0faf4; border-radius:10px; padding:9px 11px; border:1px solid #c8e6bc; font-size:11px; color:#333; line-height:1.5; display:flex; align-items:flex-start; gap:7px; margin-top:7px; }
+.co-map-admin { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.co-map-admin span { background:#e3f3e5; color:#17652d; border-radius:99px; padding:3px 7px; font-size:9px; font-weight:700; }
+.co-map-pin { position:relative; width:28px; height:28px; border-radius:50% 50% 50% 0; background:#1f7a36; border:3px solid #fff; box-shadow:0 3px 10px rgba(0,0,0,.35); transform:rotate(-45deg); }
+.co-map-pin::after { content:''; position:absolute; width:7px; height:7px; border-radius:50%; background:#fff; left:7px; top:7px; }
+.co-map-wrap .leaflet-control-attribution { font-size:8px; }
 
 /* SUBMIT */
 .co-submit {
@@ -465,32 +471,101 @@ function MoMoBox({ amount }) {
 }
 
 function MapPicker({ onAddressSelect }) {
+  const mapNodeRef=useRef(null);
+  const mapRef=useRef(null);
+  const markerRef=useRef(null);
+  const reverseGeocodeRef=useRef(null);
+  const onAddressSelectRef=useRef(onAddressSelect);
   const [query,setQuery]=useState("");
-  const [loaded,setLoaded]=useState(false);
-  const [addr,setAddr]=useState("");
-  const search=()=>{ const q=query.trim(); if(!q)return; setLoaded(true); setAddr(q); onAddressSelect(q); };
+  const [selected,setSelected]=useState(null);
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState("");
+
+  useEffect(()=>{ onAddressSelectRef.current=onAddressSelect; },[onAddressSelect]);
+
+  const selectResult=(result, lat, lon)=>{
+    const a=result.address||{};
+    const data={
+      full:result.display_name||query,
+      ward:a.ward||a.village||a.suburb||a.quarter||a.neighbourhood||"",
+      district:a.city_district||a.district||a.county||a.municipality||"",
+      province:a.state||a.city||a.town||"",
+    };
+    setSelected(data);
+    setQuery(data.full);
+    onAddressSelectRef.current(data.full);
+    const point=[Number(lat),Number(lon)];
+    if(markerRef.current) markerRef.current.setLatLng(point);
+    else markerRef.current=L.marker(point,{icon:L.divIcon({className:"",html:'<div class="co-map-pin"></div>',iconSize:[28,28],iconAnchor:[14,28]})}).addTo(mapRef.current);
+  };
+
+  const reverseGeocode=async(lat,lon)=>{
+    setLoading(true); setError("");
+    try{
+      const res=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=vi`);
+      if(!res.ok) throw new Error("Không thể tra cứu địa chỉ");
+      const result=await res.json();
+      if(result.address?.country_code!=="vn") throw new Error("Vui lòng chọn vị trí tại Việt Nam");
+      selectResult(result,lat,lon);
+    }catch{
+      setError("Chưa lấy được địa chỉ. Bạn hãy thử lại hoặc nhập địa chỉ để tìm.");
+    }finally{ setLoading(false); }
+  };
+  useEffect(()=>{ reverseGeocodeRef.current=reverseGeocode; });
+
+  useEffect(()=>{
+    if(!mapNodeRef.current||mapRef.current)return;
+    const map=L.map(mapNodeRef.current,{zoomControl:true,minZoom:5,maxBounds:[[7.5,101.5],[24,110.5]],maxBoundsViscosity:.8}).setView([16.2,107.8],5);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+      maxZoom:19,
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+    map.on("click",e=>reverseGeocodeRef.current(e.latlng.lat,e.latlng.lng));
+    mapRef.current=map;
+    const timer=setTimeout(()=>map.invalidateSize(),150);
+    return()=>{ clearTimeout(timer); map.remove(); mapRef.current=null; markerRef.current=null; };
+  },[]);
+
+  const search=async()=>{
+    const q=query.trim(); if(!q)return;
+    setLoading(true); setError("");
+    try{
+      const res=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=vn&limit=1&addressdetails=1&accept-language=vi&q=${encodeURIComponent(q)}`);
+      if(!res.ok) throw new Error("Không thể tìm địa chỉ");
+      const [result]=await res.json();
+      if(!result) throw new Error("Không tìm thấy địa chỉ");
+      const lat=Number(result.lat),lon=Number(result.lon);
+      mapRef.current.setView([lat,lon],16);
+      selectResult(result,lat,lon);
+    }catch(err){ setError(err.message||"Không tìm thấy địa chỉ phù hợp."); }
+    finally{ setLoading(false); }
+  };
+
+  const locate=()=>{
+    if(!navigator.geolocation){setError("Thiết bị không hỗ trợ định vị.");return;}
+    setLoading(true); setError("");
+    navigator.geolocation.getCurrentPosition(
+      pos=>{const {latitude,longitude}=pos.coords;mapRef.current.setView([latitude,longitude],17);reverseGeocode(latitude,longitude);},
+      ()=>{setLoading(false);setError("Không lấy được vị trí. Hãy cấp quyền định vị cho trình duyệt.");},
+      {enableHighAccuracy:true,timeout:10000}
+    );
+  };
+
   return (
     <>
       <div className="co-map-search">
-        <input className="co-map-search-inp" placeholder="Nhập địa chỉ để xem trên bản đồ…"
-          value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==="Enter"&&search()}/>
-        <button className="co-map-search-btn" type="button" onClick={search}>🗺 Tìm</button>
+        <input className="co-map-search-inp" placeholder="Tìm đường, xã/phường, tỉnh/thành…"
+          value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();search();}}}/>
+        <button className="co-map-search-btn" type="button" onClick={search} disabled={loading}>Tìm</button>
+        <button className="co-map-search-btn co-map-locate" type="button" onClick={locate} title="Dùng vị trí hiện tại" disabled={loading}>⌖</button>
       </div>
       <div className="co-map-wrap">
-        {!loaded?(
-          <div className="co-map-placeholder">
-            <span className="ico">🗺</span>
-            <p>Nhập địa chỉ và bấm <strong>Tìm</strong><br/>để xem vị trí giao hàng</p>
-          </div>
-        ):(
-          <>
-            <iframe title="map" className="co-map-frame show"
-              src={`https://maps.google.com/maps?q=${encodeURIComponent(addr+", Việt Nam")}&z=15&output=embed&hl=vi`}
-              allowFullScreen loading="lazy"/>
-          </>
-        )}
+        <div ref={mapNodeRef} className="co-map-canvas"/>
+        {loading&&<div className="co-map-loading">Đang xác định địa chỉ…</div>}
       </div>
-      {addr&&<div className="co-map-addr show"><span>📍</span><span>{addr}</span></div>}
+      <p className="co-map-hint">Bấm trực tiếp lên bản đồ hoặc nút ⌖ để tự điền địa chỉ giao hàng.</p>
+      {error&&<div className="co-map-error">{error}</div>}
+      {selected&&<div className="co-map-addr"><span>📍</span><div><strong>{selected.full}</strong><div className="co-map-admin">{selected.province&&<span>{selected.province}</span>}{selected.district&&<span>{selected.district}</span>}{selected.ward&&<span>{selected.ward}</span>}</div></div></div>}
     </>
   );
 }
@@ -498,7 +573,7 @@ function MapPicker({ onAddressSelect }) {
 export default function CheckoutModal({
   cart, onClose, onInc, onDec, onRemove,
   customer, setCustomer,
-  onSubmit, onVnpay, currentUser,
+  onSubmit, onVnpay,
 }) {
   const [successType, setSuccessType] = useState(null);
   const [ordNum, setOrdNum] = useState("");
