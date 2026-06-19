@@ -195,6 +195,7 @@ function Storefront() {
   const [commentSubmitting,setCommentSubmitting]=useState(false);
   const [cart, setCart] = useState([]);
   const [activeCategory, setActiveCategory] = useState("Tất cả");
+  const [activeNewsCategory, setActiveNewsCategory] = useState("Tin mới");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -298,10 +299,37 @@ function Storefront() {
     });
   }, [products, activeCategory, searchQuery]);
 
+  const normalizeText = value =>
+    String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase("vi");
+
+  const filteredNews = useMemo(() => {
+    if (activeNewsCategory === "Tin mới") {
+      return [...news].sort((a, b) => new Date(b.published_at || b.created_at || 0) - new Date(a.published_at || a.created_at || 0));
+    }
+    const categoryKeywords = {
+      "Trà và sức khỏe": ["tra va suc khoe", "suc khoe", "kien thuc", "cach pha"],
+      "Văn hóa trà": ["van hoa", "cau chuyen", "thuong hieu"],
+    };
+    const keywords = categoryKeywords[activeNewsCategory] || [normalizeText(activeNewsCategory)];
+    return news.filter(article => {
+      const category = normalizeText(article.category);
+      return keywords.some(keyword => category.includes(keyword));
+    });
+  }, [news, activeNewsCategory]);
+
   const submitProductSearch = e => {
     e.preventDefault();
     setActiveCategory("Tất cả");
     document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const openNewsCategory = category => {
+    setActiveNewsCategory(category);
+    setMenuOpen(false);
+    setTimeout(() => document.getElementById("news")?.scrollIntoView({ behavior: "smooth" }), 0);
   };
 
   const openNewsArticle = async article => {
@@ -518,12 +546,18 @@ function Storefront() {
     "cach-pha": { title: "Cách pha trà", content: `Bước 1 — Chuẩn bị: Dùng khoảng 5–8g trà cho ấm 150–200ml.\n\nBước 2 — Tráng trà: Rót một ít nước nóng vào ấm, lắc nhẹ rồi đổ bỏ.\n\nBước 3 — Pha trà: Dùng nước khoảng 80–90°C, không dùng nước sôi 100°C.\n\nBước 4 — Hãm trà: Đậy nắp và hãm khoảng 20–30 giây.\n\nBước 5 — Thưởng thức: Rót đều ra chén, uống khi còn ấm.` },
   };
 
+  const newsSubLinks = [
+    { href: "#news", label: "Trà và sức khỏe" },
+    { href: "#news", label: "Văn hóa trà" },
+    { href: "#news", label: "Tin mới" },
+  ];
+
   const navLinks = [
     { href: "#home", label: "Trang chủ" },
     { href: "#about", label: "Giới thiệu" },
     { href: "#products", label: "Sản phẩm" },
     { href: "#gift", label: "Hộp quà" },
-    { href: "#news", label: "Tin tức" },
+    { href: "#news", label: "Tin tức", children: newsSubLinks },
     { href: "#guide", label: "Cách pha trà" },
     { href: "#contact", label: "Liên hệ" },
   ];
@@ -623,7 +657,16 @@ function Storefront() {
       {/* MOBILE NAV */}
       <div className={`mobile-nav-overlay${menuOpen ? " open" : ""}`}>
         {navLinks.map(link => (
-          <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)}>{link.label}</a>
+          <div className="mobile-nav-group" key={link.label}>
+            <a href={link.href} onClick={() => link.children ? openNewsCategory("Tin mới") : setMenuOpen(false)}>{link.label}</a>
+            {link.children && (
+              <div className="mobile-subnav">
+                {link.children.map(child => (
+                  <a key={child.label} href={child.href} onClick={() => openNewsCategory(child.label)}>{child.label}</a>
+                ))}
+              </div>
+            )}
+          </div>
         ))}
         <div className="mobile-nav-actions">
           {currentUser ? (
@@ -682,7 +725,23 @@ function Storefront() {
           </button>
         </div>
         <nav className="main-nav">
-          {navLinks.map(link => <a key={link.href} href={link.href}>{link.label}</a>)}
+          {navLinks.map(link => (
+            link.children ? (
+              <div className="nav-item nav-dropdown" key={link.label}>
+                <a className="nav-link has-submenu" href={link.href} onClick={() => openNewsCategory("Tin mới")}>
+                  {link.label}
+                  <span className="nav-caret" aria-hidden="true">▾</span>
+                </a>
+                <div className="nav-submenu">
+                  {link.children.map(child => (
+                    <a key={child.label} href={child.href} onClick={() => openNewsCategory(child.label)}>{child.label}</a>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <a key={link.href} href={link.href}>{link.label}</a>
+            )
+          ))}
         </nav>
       </header>
 
@@ -883,7 +942,7 @@ function Storefront() {
             <p>Khám phá cách pha, bảo quản và những câu chuyện mộc mạc từ vùng chè Thanh Chương.</p>
           </div>
           <div className="news-grid">
-            {news.slice(0,6).map((article,index)=>(
+            {filteredNews.slice(0,6).map((article,index)=>(
               <article className={`news-card${index===0&&article.is_featured?" featured":""}`} key={article.id}>
                 <button className="news-image-button" type="button" onClick={()=>openNewsArticle(article)}>
                   <img src={article.image_url||logo} alt={article.title}/>
@@ -898,6 +957,7 @@ function Storefront() {
               </article>
             ))}
             {news.length===0&&<p className="news-empty">Tin tức đang được cập nhật.</p>}
+            {news.length>0&&filteredNews.length===0&&<p className="news-empty">Chưa có bài viết trong mục {activeNewsCategory}.</p>}
           </div>
         </section>
 
