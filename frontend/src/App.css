@@ -387,13 +387,10 @@ select {
 }
 
 .hero-overlay {
-  max-width: 690px;
-  padding: clamp(26px, 4vw, 48px);
-  border: 1px solid rgba(255, 255, 255, .16);
-  border-radius: 28px;
-  background: linear-gradient(145deg, rgba(9, 43, 23, .68), rgba(9, 35, 19, .42));
-  box-shadow: 0 28px 80px rgba(4, 23, 12, .3), inset 0 1px 0 rgba(255, 255, 255, .12);
-  backdrop-filter: blur(8px);
+  width: min(690px, 58vw);
+  max-width: 100%;
+  padding: 0;
+  text-align: left;
 }
 
 .eyebrow {
@@ -424,6 +421,7 @@ select {
 }
 
 .hero h2 {
+  max-width: 660px;
   margin: 0 0 20px;
   font-size: clamp(24px, 2.4vw, 36px);
   line-height: 1.2;
@@ -1594,7 +1592,7 @@ select {
   .header-search { grid-column:1/-1; grid-row:2; width:100%; height:44px; }
   #home, #about, #products, #gift, #news, #guide, #contact { scroll-margin-top: 170px; }
   .hero { min-height: 660px; padding: 48px 18px; background-position: 68% center; }
-  .hero-overlay { width: 100%; padding: 26px 22px; border-radius: 22px; backdrop-filter: blur(6px); }
+  .hero-overlay { width: 100%; max-width: 560px; padding: 0; }
   .hero h1 { font-size: 46px; letter-spacing: -1.6px; }
   .hero h2 { font-size: 24px; }
   .hero p { font-size: 15px; line-height: 1.65; }
