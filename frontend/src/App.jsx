@@ -5,7 +5,11 @@ import AdminPage from "./AdminPage";
 import logo from "./assets/logo.png";
 import CheckoutModal from "./CheckoutModal";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || (
+  import.meta.env.DEV
+    ? "http://localhost:5000"
+    : "https://thanh-chuong-tra-fullstack.onrender.com"
+);
 
 function TeaGuideIcon({ name, size = 26 }) {
   const paths = {
