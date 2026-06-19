@@ -751,7 +751,7 @@ export default function CheckoutModal({
     if(!code){setCouponMessage("Vui lòng nhập mã giảm giá.");return;}
     setCouponLoading(true); setCouponMessage("");
     try{
-      const res=await fetch(`${apiUrl}/api/discount-codes/validate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code,subtotal:subtotalAmount})});
+      const res=await fetch(`${apiUrl}/api/discount-codes/validate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code,subtotal:subtotalAmount,customer_email:customer.customer_email})});
       const data=await res.json();
       if(!res.ok)throw new Error(data.message||"Mã giảm giá không hợp lệ");
       setAppliedCoupon(data); setCouponInput(data.code); setCouponMessage("");

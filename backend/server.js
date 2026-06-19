@@ -93,6 +93,9 @@ async function ensureDiscountTables() {
   await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_code VARCHAR(30)`);
   await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal_amount NUMERIC(12,2)`);
+  await poolPromise.query(`ALTER TABLE discount_codes ADD COLUMN IF NOT EXISTS customer_email VARCHAR(180)`);
+  await poolPromise.query(`ALTER TABLE discount_codes ADD COLUMN IF NOT EXISTS loyalty_source_order_id BIGINT REFERENCES orders(id) ON DELETE SET NULL`);
+  await poolPromise.query(`CREATE UNIQUE INDEX IF NOT EXISTS discount_codes_loyalty_order_idx ON discount_codes(loyalty_source_order_id) WHERE loyalty_source_order_id IS NOT NULL`);
 }
 
 async function ensureAftercareTables() {
@@ -403,10 +406,33 @@ function getLoyaltyTier(totalSpent) {
   const silver = Number(process.env.LOYALTY_SILVER_THRESHOLD || 1000000);
   const gold = Number(process.env.LOYALTY_GOLD_THRESHOLD || 3000000);
   const diamond = Number(process.env.LOYALTY_DIAMOND_THRESHOLD || 7000000);
-  if (totalSpent >= diamond) return { name: "Kim Cương", benefit: "Giảm 12% và ưu tiên hỗ trợ cho đơn tiếp theo" };
-  if (totalSpent >= gold) return { name: "Vàng", benefit: "Giảm 8% cho đơn tiếp theo" };
-  if (totalSpent >= silver) return { name: "Bạc", benefit: "Giảm 5% cho đơn tiếp theo" };
-  return { name: "Thân thiết", benefit: "Tích lũy doanh số để nhận ưu đãi đến 12%" };
+  if (totalSpent >= diamond) return { name: "Kim Cương", percent: 12, benefit: "Giảm 12% và ưu tiên hỗ trợ cho đơn tiếp theo" };
+  if (totalSpent >= gold) return { name: "Vàng", percent: 8, benefit: "Giảm 8% cho đơn tiếp theo" };
+  if (totalSpent >= silver) return { name: "Bạc", percent: 5, benefit: "Giảm 5% cho đơn tiếp theo" };
+  return { name: "Thân thiết", percent: 0, benefit: "Tích lũy doanh số để nhận ưu đãi đến 12%" };
+}
+
+async function getOrCreateLoyaltyCoupon(order, tier) {
+  if (!tier.percent) return null;
+  const existing = await poolPromise.query(`SELECT * FROM discount_codes WHERE loyalty_source_order_id=$1 LIMIT 1`, [order.id]);
+  if (existing.rows.length) return existing.rows[0];
+  const validDays = Math.max(1, Number(process.env.LOYALTY_COUPON_VALID_DAYS || 60));
+  const maxDiscount = Math.max(0, Number(process.env.LOYALTY_MAX_DISCOUNT_AMOUNT || 200000));
+  const prefix = tier.name === "Kim Cương" ? "KC" : tier.name === "Vàng" ? "VANG" : "BAC";
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const code = `${prefix}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+    const inserted = await poolPromise.query(
+      `INSERT INTO discount_codes
+       (code,description,discount_type,discount_value,min_order_amount,max_discount_amount,usage_limit,expires_at,is_active,customer_email,loyalty_source_order_id)
+       VALUES ($1,$2,'percent',$3,0,$4,1,NOW()+($5 || ' days')::interval,TRUE,$6,$7)
+       ON CONFLICT DO NOTHING RETURNING *`,
+      [code, `Ưu đãi hạng ${tier.name} dành riêng cho ${order.customer_email}`, tier.percent, maxDiscount || null, String(validDays), String(order.customer_email).trim().toLowerCase(), order.id]
+    );
+    if (inserted.rows.length) return inserted.rows[0];
+    const raced = await poolPromise.query(`SELECT * FROM discount_codes WHERE loyalty_source_order_id=$1 LIMIT 1`, [order.id]);
+    if (raced.rows.length) return raced.rows[0];
+  }
+  throw new Error("Không thể tạo mã ưu đãi khách hàng");
 }
 
 async function deliverEmail({ to, name, subject, html }) {
@@ -449,6 +475,7 @@ async function sendAftercareEmail(orderId) {
     const totalSpent = Number(spendingResult.rows[0].total_spent || 0);
     const paidOrders = Number(spendingResult.rows[0].paid_orders || 0);
     const tier = getLoyaltyTier(totalSpent);
+    const loyaltyCoupon = await getOrCreateLoyaltyCoupon(order, tier);
     const clientUrl = String(process.env.CLIENT_URL || "http://localhost:5173").replace(/\/$/, "");
     const reviewUrl = `${clientUrl}/review?token=${encodeURIComponent(order.feedback_token)}`;
     const html = `
@@ -462,6 +489,7 @@ async function sendAftercareEmail(orderId) {
               <h3 style="margin-top:0">Hạng khách hàng: ${tier.name}</h3>
               <p>Bạn đã có <strong>${paidOrders}</strong> đơn thành công, tổng chi tiêu <strong>${formatMoney(totalSpent)}</strong>.</p>
               <p style="margin-bottom:0"><strong>Quyền lợi:</strong> ${tier.benefit}.</p>
+              ${loyaltyCoupon ? `<div style="margin-top:16px;padding:14px;background:#fff;border:1px dashed #1f7a36;border-radius:10px;text-align:center"><div>Mã ưu đãi riêng của bạn</div><strong style="display:block;font-size:24px;letter-spacing:2px;color:#174421;margin:6px 0">${loyaltyCoupon.code}</strong><small>Dùng 1 lần, đúng email ${order.customer_email}, hết hạn ${formatDateTime(loyaltyCoupon.expires_at)}</small></div>` : ""}
             </div>
             <p style="font-size:13px;color:#667066;margin-top:24px">Chính sách áp dụng theo chương trình tại thời điểm mua hàng. Không chia sẻ liên kết đánh giá này cho người khác.</p>
           </div>
@@ -721,7 +749,7 @@ function parseDiscountPayload(body) {
   };
 }
 
-async function calculateDiscount(client, rawCode, subtotal, lock = false) {
+async function calculateDiscount(client, rawCode, subtotal, lock = false, customerEmail = "") {
   const code = normalizeDiscountCode(rawCode);
   const amount = Math.max(0, Number(subtotal || 0));
   if (!code) return { code: "", discountAmount: 0, totalAmount: amount, coupon: null };
@@ -730,6 +758,9 @@ async function calculateDiscount(client, rawCode, subtotal, lock = false) {
   const coupon = result.rows[0];
   if (!coupon) throw Object.assign(new Error("Mã giảm giá không tồn tại"), { statusCode: 404 });
   if (!coupon.is_active) throw Object.assign(new Error("Mã giảm giá đang bị tắt"), { statusCode: 409 });
+  if (coupon.customer_email && String(coupon.customer_email).trim().toLowerCase() !== String(customerEmail).trim().toLowerCase()) {
+    throw Object.assign(new Error("Mã ưu đãi này chỉ dành cho email khách hàng đã được cấp"), { statusCode: 403 });
+  }
   if (coupon.starts_at && new Date(coupon.starts_at) > new Date()) throw Object.assign(new Error("Mã giảm giá chưa đến thời gian sử dụng"), { statusCode: 409 });
   if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) throw Object.assign(new Error("Mã giảm giá đã hết hạn"), { statusCode: 409 });
   if (coupon.usage_limit != null && Number(coupon.used_count) >= Number(coupon.usage_limit)) throw Object.assign(new Error("Mã giảm giá đã hết lượt sử dụng"), { statusCode: 409 });
@@ -744,7 +775,7 @@ async function calculateDiscount(client, rawCode, subtotal, lock = false) {
 app.post("/api/discount-codes/validate", async (req, res) => {
   try {
     if (!normalizeDiscountCode(req.body.code)) return res.status(400).json({ valid:false, message:"Vui lòng nhập mã giảm giá" });
-    const result = await calculateDiscount(poolPromise, req.body.code, req.body.subtotal);
+    const result = await calculateDiscount(poolPromise, req.body.code, req.body.subtotal, false, req.body.customer_email);
     res.json({ valid:true, code:result.code, description:result.coupon.description, discount_amount:result.discountAmount, total_amount:result.totalAmount });
   } catch (error) {
     res.status(error.statusCode || 400).json({ valid:false, message:error.message });
@@ -956,7 +987,7 @@ app.post("/api/orders", async (req, res) => {
 
     const preparedItems = await reserveOrderStock(client, items);
     const subtotalAmount = preparedItems.reduce((sum,item)=>sum+item.price*item.quantity,0);
-    const discount = await calculateDiscount(client, discount_code, subtotalAmount, true);
+    const discount = await calculateDiscount(client, discount_code, subtotalAmount, true, customer_email);
     const totalAmount = discount.totalAmount;
 
     const orderResult = await client.query(
@@ -1046,7 +1077,7 @@ app.post("/api/create-vnpay-payment", async (req, res) => {
 
     const preparedItems = await reserveOrderStock(client, items);
     const subtotalAmount = preparedItems.reduce((sum,item)=>sum+item.price*item.quantity,0);
-    const discount = await calculateDiscount(client, customer.discount_code, subtotalAmount, true);
+    const discount = await calculateDiscount(client, customer.discount_code, subtotalAmount, true, customer.customer_email);
     const totalAmount = discount.totalAmount;
 
     const orderResult = await client.query(
