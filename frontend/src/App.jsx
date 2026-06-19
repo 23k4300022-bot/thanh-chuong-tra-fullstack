@@ -935,9 +935,9 @@ function Storefront() {
         </section>
       </main>
 
-      <footer style={{ background: "#0d2e14", color: "#c8e6c9", padding: "48px 5% 24px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 40, maxWidth: 1100, margin: "0 auto", paddingBottom: 32, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-          <div>
+      <footer className="site-footer" style={{ background: "#0d2e14", color: "#c8e6c9", padding: "48px 5% 24px" }}>
+        <div className="footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 40, maxWidth: 1100, margin: "0 auto", paddingBottom: 32, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          <div className="footer-column footer-brand-column">
             <h3 style={{ color: "#fff", marginBottom: 8, fontSize: 20 }}>Thanh Chương Trà</h3>
             <p style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.75 }}>Hương xanh xứ Nghệ trong từng chén trà. Tinh chọn từ vùng chè Thanh Chương, Nghệ An.</p>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
@@ -946,29 +946,29 @@ function Storefront() {
               ))}
             </div>
           </div>
-          <div>
+          <div className="footer-column">
             <h4 style={{ color: "#fff", marginBottom: 16, fontSize: 14, textTransform: "uppercase", letterSpacing: 1 }}>Liên kết nhanh</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="footer-links" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {[{ label: "Trang chủ", href: "#home" }, { label: "Sản phẩm", href: "#products" }, { label: "Hộp quà", href: "#gift" }, { label: "Cách pha trà", href: "#guide" }, { label: "Liên hệ", href: "#contact" }].map(link => (
                 <a key={link.label} href={link.href} style={{ color: "#a5d6a7", textDecoration: "none", fontSize: 14, opacity: 0.85 }}>{link.label}</a>
               ))}
             </div>
           </div>
-          <div>
+          <div className="footer-column">
             <h4 style={{ color: "#fff", marginBottom: 16, fontSize: 14, textTransform: "uppercase", letterSpacing: 1 }}>Chính sách</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[{ label: "🚚 Chính sách vận chuyển", key: "van-chuyen" }, { label: "🔄 Chính sách đổi trả", key: "doi-tra" }, { label: "🔒 Chính sách bảo mật", key: "bao-mat" }].map(policy => (
-                <button key={policy.key} onClick={() => setShowPolicyModal(policy.key)} style={{ background: "none", border: "none", color: "#a5d6a7", fontSize: 14, cursor: "pointer", textAlign: "left", padding: 0, opacity: 0.85 }}>{policy.label}</button>
+            <div className="footer-policy-list" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[{ icon: "🚚", label: "Chính sách vận chuyển", key: "van-chuyen" }, { icon: "🔄", label: "Chính sách đổi trả", key: "doi-tra" }, { icon: "🔒", label: "Chính sách bảo mật", key: "bao-mat" }].map(policy => (
+                <button className="footer-policy-button" key={policy.key} onClick={() => setShowPolicyModal(policy.key)} style={{ background: "none", border: "none", color: "#a5d6a7", fontSize: 14, cursor: "pointer", textAlign: "left", padding: 0, opacity: 0.85 }}><span>{policy.icon}</span><span>{policy.label}</span></button>
               ))}
             </div>
           </div>
-          <div>
+          <div className="footer-column">
             <h4 style={{ color: "#fff", marginBottom: 16, fontSize: 14, textTransform: "uppercase", letterSpacing: 1 }}>Liên hệ</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13, opacity: 0.8 }}>
-              <span>📞 0395034551</span>
-              <span>✉️ thanhchuongtra@gmail.com</span>
-              <span>📍 Thanh Chương, Nghệ An</span>
-              <span>🕐 7:00 – 21:00 hàng ngày</span>
+            <div className="footer-contact-list" style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13, opacity: 0.8 }}>
+              <span className="footer-contact-item"><span>📞</span><span>0395034551</span></span>
+              <span className="footer-contact-item"><span>✉️</span><span>thanhchuongtra@gmail.com</span></span>
+              <span className="footer-contact-item"><span>📍</span><span>Thanh Chương, Nghệ An</span></span>
+              <span className="footer-contact-item"><span>🕐</span><span>7:00 – 21:00 hàng ngày</span></span>
             </div>
           </div>
         </div>

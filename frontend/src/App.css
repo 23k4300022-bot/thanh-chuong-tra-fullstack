@@ -894,6 +894,47 @@ select {
 
 /* ===== FOOTER ===== */
 
+.site-footer,
+.footer-column,
+.footer-column h3,
+.footer-column h4,
+.footer-column p {
+  text-align: left;
+}
+
+.footer-column h3,
+.footer-column h4 {
+  margin-top: 0;
+}
+
+.footer-brand-column p {
+  max-width: 280px;
+}
+
+.footer-links a {
+  width: fit-content;
+}
+
+.footer-policy-button,
+.footer-contact-item {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
+  line-height: 1.55;
+}
+
+.footer-contact-item > span:first-child,
+.footer-policy-button > span:first-child {
+  text-align: center;
+}
+
+.footer-contact-item > span:last-child,
+.footer-policy-button > span:last-child {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
 .footer {
   background: #123318;
   color: white;
