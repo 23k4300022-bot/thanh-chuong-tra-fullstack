@@ -1,14 +1,19 @@
 const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 const qs = require("qs");
 const { poolPromise } = require("./db");
 require("dotenv").config();
 
+const HAS_BREVO_EMAIL = Boolean(
+  process.env.BREVO_API_KEY && process.env.EMAIL_FROM_ADDRESS
+);
+const HAS_SMTP_EMAIL = Boolean(process.env.MAIL_USER && process.env.MAIL_PASS);
 const ENABLE_EMAIL =
   process.env.ENABLE_EMAIL === "true" ||
   (process.env.ENABLE_EMAIL !== "false" &&
-    Boolean(process.env.BREVO_API_KEY && process.env.EMAIL_FROM_ADDRESS));
+    (HAS_BREVO_EMAIL || HAS_SMTP_EMAIL));
 
 const app = express();
 
@@ -181,6 +186,18 @@ const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 const BREVO_API_KEY = process.env.BREVO_API_KEY || "";
 const EMAIL_FROM_ADDRESS = process.env.EMAIL_FROM_ADDRESS || "";
 const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || "Thanh Chương Trà";
+const MAIL_USER = process.env.MAIL_USER || "";
+const MAIL_PASS = process.env.MAIL_PASS || "";
+
+const smtpTransporter = HAS_SMTP_EMAIL
+  ? nodemailer.createTransport({
+      service: process.env.MAIL_SERVICE || "gmail",
+      auth: {
+        user: MAIL_USER,
+        pass: MAIL_PASS,
+      },
+    })
+  : null;
 
 function formatMoney(amount) {
   return Number(amount || 0).toLocaleString("vi-VN") + "đ";
@@ -284,11 +301,11 @@ async function sendOrderSuccessEmail(orderInfo) {
     </div>
   `;
 
-  if (!BREVO_API_KEY) throw new Error("Thiếu BREVO_API_KEY.");
-  if (!EMAIL_FROM_ADDRESS) throw new Error("Thiếu EMAIL_FROM_ADDRESS.");
-
   const payload = {
-    sender: { name: EMAIL_FROM_NAME, email: EMAIL_FROM_ADDRESS },
+    sender: {
+      name: EMAIL_FROM_NAME,
+      email: EMAIL_FROM_ADDRESS || MAIL_USER,
+    },
     to: [{ email: customer_email, name: customer_name || customer_email }],
     subject: `Xác nhận đơn hàng #${order_id} - Thanh Chương Trà`,
     htmlContent: html,
@@ -298,21 +315,40 @@ async function sendOrderSuccessEmail(orderInfo) {
     payload.cc = [{ email: process.env.SHOP_EMAIL, name: EMAIL_FROM_NAME }];
   }
 
-  const response = await fetch(BREVO_API_URL, {
-    method: "POST",
-    headers: {
-      "api-key": BREVO_API_KEY,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  if (HAS_BREVO_EMAIL) {
+    const response = await fetch(BREVO_API_URL, {
+      method: "POST",
+      headers: {
+        "api-key": BREVO_API_KEY,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-  const responseText = await response.text();
-  if (!response.ok) {
-    throw new Error(`Brevo API lỗi ${response.status}: ${responseText.slice(0, 300)}`);
+    const responseText = await response.text();
+    if (!response.ok) {
+      throw new Error(`Brevo API lỗi ${response.status}: ${responseText.slice(0, 300)}`);
+    }
+    console.log(`Đã gửi email xác nhận đơn hàng #${order_id} tới ${customer_email} qua Brevo`);
+    return;
   }
-  console.log(`Đã gửi email xác nhận đơn hàng #${order_id} tới ${customer_email} qua Brevo`);
+
+  if (!smtpTransporter) {
+    throw new Error("Thiếu cấu hình email: cần Brevo hoặc MAIL_USER/MAIL_PASS.");
+  }
+
+  await smtpTransporter.sendMail({
+    from: {
+      name: EMAIL_FROM_NAME,
+      address: MAIL_USER,
+    },
+    to: customer_email,
+    cc: process.env.SHOP_EMAIL || undefined,
+    subject: payload.subject,
+    html,
+  });
+  console.log(`Đã gửi email xác nhận đơn hàng #${order_id} tới ${customer_email} qua SMTP`);
 }
 
 /* ===================== VNPAY FUNCTIONS ===================== */
@@ -940,13 +976,14 @@ app.post("/api/sepay-webhook", async (req, res) => {
     let matchedOrder = null;
 
     const orderIdMatch =
-      (content || "").match(/TCT#(\d+)/i) ||
-      (description || "").match(/TCT#(\d+)/i);
+      (content || "").match(/\bTCT\s*#?\s*(\d+)\b/i) ||
+      (description || "").match(/\bTCT\s*#?\s*(\d+)\b/i);
 
     if (orderIdMatch) {
       const exactId = Number(orderIdMatch[1]);
       const exactResult = await poolPromise.query(
-        `SELECT id, customer_name, customer_email, phone, total_amount, payment_status
+        `SELECT id, customer_name, customer_email, phone, address, note,
+                total_amount, payment_status
          FROM orders
          WHERE id = $1
            AND payment_method = 'Chuyển khoản test'
@@ -966,7 +1003,8 @@ app.post("/api/sepay-webhook", async (req, res) => {
       const fullText = (content || "").toLowerCase() + " " + (description || "").toLowerCase();
 
       const pendingOrders = await poolPromise.query(`
-        SELECT id, customer_name, customer_email, phone, total_amount, payment_status
+        SELECT id, customer_name, customer_email, phone, address, note,
+               total_amount, payment_status
         FROM orders
         WHERE payment_method = 'Chuyển khoản test'
           AND payment_status = 'Chờ xác nhận chuyển khoản'
@@ -1009,19 +1047,17 @@ app.post("/api/sepay-webhook", async (req, res) => {
       [matchedOrder.id]
     );
 
-    sendOrderSuccessEmail({
+    await sendOrderSuccessEmail({
       order_id: matchedOrder.id,
       customer_name: matchedOrder.customer_name,
       customer_email: matchedOrder.customer_email,
       phone: matchedOrder.phone,
-      address: "",
-      note: "",
+      address: matchedOrder.address,
+      note: matchedOrder.note,
       total_amount: matchedOrder.total_amount,
       payment_method: "Chuyển khoản BIDV",
       payment_status: "Đã thanh toán chuyển khoản",
       items: itemsResult.rows,
-    }).catch((err) => {
-      console.error("Lỗi gửi mail sau SePay webhook:", err.message);
     });
 
     return res.json({ success: true, message: `Đã xác nhận đơn #${matchedOrder.id}` });
