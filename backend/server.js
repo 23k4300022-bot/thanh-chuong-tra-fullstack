@@ -5,7 +5,10 @@ const qs = require("qs");
 const { poolPromise } = require("./db");
 require("dotenv").config();
 
-const ENABLE_EMAIL = process.env.ENABLE_EMAIL === "true";
+const ENABLE_EMAIL =
+  process.env.ENABLE_EMAIL === "true" ||
+  (process.env.ENABLE_EMAIL !== "false" &&
+    Boolean(process.env.BREVO_API_KEY && process.env.EMAIL_FROM_ADDRESS));
 
 const app = express();
 
@@ -655,25 +658,21 @@ app.post("/api/orders", async (req, res) => {
 
     await client.query("COMMIT");
 
-    if (pm !== "Chuyển khoản test") {
-      console.log(`>>> Gửi mail ngay vì payment_method="${pm}" (không phải CK)`);
-      const emailItemsResult = await poolPromise.query(
-        `SELECT p.name, p.weight, oi.quantity, oi.price
-         FROM order_items oi
-         JOIN products p ON oi.product_id = p.id
-         WHERE oi.order_id = $1`,
-        [orderId]
-      );
-      sendOrderSuccessEmail({
-        order_id: orderId, customer_name, customer_email, phone, address, note,
-        total_amount: totalAmount, payment_method: pm || "COD",
-        payment_status: paymentStatus, items: emailItemsResult.rows,
-      }).catch((mailError) => {
-        console.error("Lỗi gửi email xác nhận:", mailError.message);
-      });
-    } else {
-      console.log(`>>> Đơn #${orderId} là Chuyển khoản test — KHÔNG gửi mail, chờ SePay webhook`);
-    }
+    console.log(`>>> Gửi mail xác nhận đơn #${orderId} với payment_method="${pm || "COD"}", trạng thái="${paymentStatus}"`);
+    const emailItemsResult = await poolPromise.query(
+      `SELECT p.name, p.weight, oi.quantity, oi.price
+       FROM order_items oi
+       JOIN products p ON oi.product_id = p.id
+       WHERE oi.order_id = $1`,
+      [orderId]
+    );
+    sendOrderSuccessEmail({
+      order_id: orderId, customer_name, customer_email, phone, address, note,
+      total_amount: totalAmount, payment_method: pm || "COD",
+      payment_status: paymentStatus, items: emailItemsResult.rows,
+    }).catch((mailError) => {
+      console.error("Lỗi gửi email xác nhận:", mailError.message);
+    });
 
     res.json({
       message: "Đặt hàng thành công",
