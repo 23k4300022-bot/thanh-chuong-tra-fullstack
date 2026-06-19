@@ -123,6 +123,19 @@ const STYLES = `
 .co-total-big { display:flex; justify-content:space-between; align-items:center; }
 .co-total-big .lbl { font-size:14px; font-weight:700; color:#555; }
 .co-total-big .amt { font-size:22px; font-weight:900; color:#b96b00; letter-spacing:-.02em; }
+.co-discount-row { color:#1f7a36; font-weight:800; }
+.co-coupon { margin:0 0 20px; }
+.co-coupon-form { display:flex; gap:8px; }
+.co-coupon-form input { flex:1; min-width:0; padding:11px 13px; border:1.5px solid #d9e3d5; border-radius:10px; font:inherit; font-size:12px; text-transform:uppercase; outline:none; }
+.co-coupon-form input:focus { border-color:#1f7a36; box-shadow:0 0 0 3px rgba(31,122,54,.1); }
+.co-coupon-form button { border:0; border-radius:10px; padding:0 16px; background:#174421; color:#fff; font:inherit; font-size:12px; font-weight:800; cursor:pointer; }
+.co-coupon-form button:disabled { opacity:.6; cursor:wait; }
+.co-coupon-msg { margin-top:7px; font-size:11px; line-height:1.5; }
+.co-coupon-msg.ok { color:#1f7a36; font-weight:700; }
+.co-coupon-msg.err { color:#c62828; }
+.co-coupon-applied { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; border:1px solid #b9dfbd; border-radius:10px; background:#eff9ef; color:#174421; font-size:11px; }
+.co-coupon-applied strong { display:block; font-size:13px; }
+.co-coupon-remove { border:0; background:transparent; color:#b42318; font-weight:800; cursor:pointer; }
 
 .co-pay-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:0; }
 .co-pay-opt {
@@ -652,16 +665,29 @@ function MapPicker({ onAddressSelect }) {
 export default function CheckoutModal({
   cart, onClose, onInc, onDec, onRemove,
   customer, setCustomer,
-  onSubmit, onVnpay,
+  onSubmit, onVnpay, apiUrl,
 }) {
   const [successType, setSuccessType] = useState(null);
   const [ordNum, setOrdNum] = useState("");
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponMessage, setCouponMessage] = useState("");
+  const [couponLoading, setCouponLoading] = useState(false);
   // liveTransferNote có TCT#id — chỉ set sau khi tạo đơn thành công
   const [liveTransferNote, setLiveTransferNote] = useState("");
   const confettiRef = useRef(null);
-  const totalAmount = cart.reduce((s,i)=>s+Number(i.price)*i.quantity, 0);
+  const subtotalAmount = cart.reduce((s,i)=>s+Number(i.price)*i.quantity, 0);
+  const discountAmount = Number(appliedCoupon?.discount_amount || 0);
+  const totalAmount = Math.max(0, subtotalAmount - discountAmount);
+
+  useEffect(()=>{
+    if(appliedCoupon){
+      setAppliedCoupon(null);
+      setCouponMessage("Giỏ hàng đã thay đổi, vui lòng áp dụng lại mã giảm giá.");
+    }
+  },[subtotalAmount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(()=>{
     if(document.getElementById("co-styles"))return;
@@ -695,10 +721,10 @@ export default function CheckoutModal({
     if(submitting) return;
     if(!validate())return;
     if(cart.length===0){alert("Giỏ hàng đang trống");return;}
-    if(customer.payment_method==="VNPay Sandbox"){ await onVnpay(); return; }
+    if(customer.payment_method==="VNPay Sandbox"){ await onVnpay(appliedCoupon?.code || ""); return; }
     setSubmitting(true);
     try{
-      const res = await onSubmit(e);
+      const res = await onSubmit(e, appliedCoupon?.code || "");
       const id = res?.order_id || genOrderId();
       setOrdNum(id);
 
@@ -715,6 +741,19 @@ export default function CheckoutModal({
     finally{
       setSubmitting(false);
     }
+  };
+
+  const applyCoupon=async()=>{
+    const code=couponInput.trim().toUpperCase();
+    if(!code){setCouponMessage("Vui lòng nhập mã giảm giá.");return;}
+    setCouponLoading(true); setCouponMessage("");
+    try{
+      const res=await fetch(`${apiUrl}/api/discount-codes/validate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code,subtotal:subtotalAmount})});
+      const data=await res.json();
+      if(!res.ok)throw new Error(data.message||"Mã giảm giá không hợp lệ");
+      setAppliedCoupon(data); setCouponInput(data.code); setCouponMessage("");
+    }catch(error){setAppliedCoupon(null);setCouponMessage(error.message);}
+    finally{setCouponLoading(false);}
   };
 
   const payMethod = customer.payment_method;
@@ -851,10 +890,20 @@ export default function CheckoutModal({
                   </div>
 
                   <div className="co-total-box">
-                    <div className="co-total-row"><span>Tạm tính</span><span>{fmt(totalAmount)}</span></div>
+                    <div className="co-total-row"><span>Tạm tính</span><span>{fmt(subtotalAmount)}</span></div>
                     <div className="co-total-row"><span>Phí vận chuyển</span><span className="free">Miễn phí</span></div>
+                    {appliedCoupon&&<div className="co-total-row co-discount-row"><span>Giảm giá ({appliedCoupon.code})</span><span>−{fmt(discountAmount)}</span></div>}
                     <div className="co-total-divider"/>
                     <div className="co-total-big"><span className="lbl">Tổng thanh toán</span><span className="amt">{fmt(totalAmount)}</span></div>
+                  </div>
+
+                  <div className="co-coupon">
+                    <div className="co-sec-title">Mã giảm giá</div>
+                    {appliedCoupon?(
+                      <div className="co-coupon-applied"><div><strong>{appliedCoupon.code} · Giảm {fmt(discountAmount)}</strong><span>{appliedCoupon.description||"Mã đã được áp dụng"}</span></div><button className="co-coupon-remove" type="button" onClick={()=>{setAppliedCoupon(null);setCouponInput("");setCouponMessage("");}}>Gỡ</button></div>
+                    ):(
+                      <><div className="co-coupon-form"><input value={couponInput} onChange={e=>setCouponInput(e.target.value.toUpperCase())} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();applyCoupon();}}} placeholder="Nhập mã ưu đãi"/><button type="button" onClick={applyCoupon} disabled={couponLoading}>{couponLoading?"Đang kiểm tra":"Áp dụng"}</button></div>{couponMessage&&<div className="co-coupon-msg err">{couponMessage}</div>}</>
+                    )}
                   </div>
 
                   <div className="co-sec-title">Phương thức thanh toán</div>
@@ -932,6 +981,7 @@ export default function CheckoutModal({
                   <div className="co-order-summary">
                     <div className="co-order-summary-row"><span className="lbl">Sản phẩm</span><span className="val">{cart.length} loại</span></div>
                     <div className="co-order-summary-row"><span className="lbl">Vận chuyển</span><span className="val" style={{color:"#1f7a36"}}>Miễn phí</span></div>
+                    {appliedCoupon&&<div className="co-order-summary-row"><span className="lbl">Mã {appliedCoupon.code}</span><span className="val" style={{color:"#1f7a36"}}>−{fmt(discountAmount)}</span></div>}
                     <div className="co-order-summary-row total"><span className="lbl">Tổng thanh toán</span><span className="val">{fmt(totalAmount)}</span></div>
                   </div>
 

@@ -474,7 +474,7 @@ function Storefront() {
     });
   };
 
-  const payWithVnpay = async () => {
+  const payWithVnpay = async (discountCode = "") => {
     if (cart.length === 0) { alert("Giỏ hàng đang trống"); return; }
     if (!customer.customer_name || !customer.customer_email || !customer.phone || !customer.address) {
       alert("Vui lòng nhập họ tên, email, số điện thoại và địa chỉ trước khi thanh toán"); return;
@@ -483,7 +483,7 @@ function Storefront() {
       const res = await fetch(`${API_URL}/api/create-vnpay-payment`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customer: { ...customer, payment_method: "VNPay Sandbox", vnp_bank_code: "NCB" },
+          customer: { ...customer, payment_method: "VNPay Sandbox", vnp_bank_code: "NCB", discount_code: discountCode },
           items: cart.map(item => ({
             product_id: item.id,
             name: item.name,
@@ -501,7 +501,7 @@ function Storefront() {
     } catch (error) { alert("Lỗi khi chuyển sang VNPay"); console.error(error); }
   };
 
-  const submitOrder = async e => {
+  const submitOrder = async (e, discountCode = "") => {
     e.preventDefault();
     if (!currentUser) { alert("Vui lòng đăng nhập trước khi đặt hàng"); setShowAuth(true); return; }
     if (cart.length === 0) { alert("Giỏ hàng đang trống"); return; }
@@ -509,6 +509,7 @@ function Storefront() {
     if (customer.payment_method === "VNPay Sandbox") { await payWithVnpay(); return; }
     const orderData = {
       ...customer,
+      discount_code: discountCode,
       items: cart.map(item => ({
         product_id: item.id,
         name: item.name,
@@ -1309,6 +1310,7 @@ function Storefront() {
           setCustomer={setCustomer}
           onSubmit={submitOrder}
           onVnpay={payWithVnpay}
+          apiUrl={API_URL}
         />
       )}
 

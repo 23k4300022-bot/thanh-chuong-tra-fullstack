@@ -470,6 +470,40 @@ function NewsEditModal({ article, onClose, onSaved }) {
   </div></div>;
 }
 
+const emptyDiscountForm={code:"",description:"",discount_type:"percent",discount_value:10,min_order_amount:0,max_discount_amount:"",usage_limit:"",starts_at:"",expires_at:"",is_active:true};
+const toDateTimeInput=value=>value?new Date(value).toISOString().slice(0,16):"";
+
+function DiscountCodeModal({coupon,onClose,onSaved}){
+  const [form,setForm]=useState(coupon?{...emptyDiscountForm,...coupon,starts_at:toDateTimeInput(coupon.starts_at),expires_at:toDateTimeInput(coupon.expires_at)}:emptyDiscountForm);
+  const [saving,setSaving]=useState(false);
+  const submit=async e=>{
+    e.preventDefault();setSaving(true);
+    try{
+      const res=await fetch(`${API_URL}/api/admin/discount-codes${coupon?`/${coupon.id}`:""}`,{method:coupon?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(form)});
+      const data=await res.json();
+      if(!res.ok)throw new Error(data.message||"Không lưu được mã giảm giá");
+      onSaved(data);onClose();
+    }catch(error){alert(error.message);}
+    finally{setSaving(false);}
+  };
+  return <div className="admin-news-modal" onClick={onClose}><form className="admin-news-editor" onClick={e=>e.stopPropagation()} onSubmit={submit}>
+    <div className="admin-news-editor-head"><h2>{coupon?"Sửa mã giảm giá":"Tạo mã giảm giá"}</h2><button type="button" onClick={onClose}>×</button></div>
+    <div className="admin-news-form-grid">
+      <label>Mã giảm giá<input value={form.code} onChange={e=>setForm({...form,code:e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,"")})} placeholder="VD: TRAHE2026" required/></label>
+      <label>Loại giảm<select value={form.discount_type} onChange={e=>setForm({...form,discount_type:e.target.value,max_discount_amount:e.target.value==="fixed"?"":form.max_discount_amount})}><option value="percent">Theo phần trăm (%)</option><option value="fixed">Số tiền cố định (đ)</option></select></label>
+      <label>Giá trị giảm<input type="number" min="1" max={form.discount_type==="percent"?100:undefined} value={form.discount_value} onChange={e=>setForm({...form,discount_value:e.target.value})} required/></label>
+      <label>Đơn tối thiểu<input type="number" min="0" step="1000" value={form.min_order_amount} onChange={e=>setForm({...form,min_order_amount:e.target.value})}/></label>
+      <label>Mức giảm tối đa<input type="number" min="0" step="1000" value={form.max_discount_amount} onChange={e=>setForm({...form,max_discount_amount:e.target.value})} placeholder="Để trống nếu không giới hạn" disabled={form.discount_type==="fixed"}/></label>
+      <label>Giới hạn lượt dùng<input type="number" min="1" value={form.usage_limit} onChange={e=>setForm({...form,usage_limit:e.target.value})} placeholder="Để trống nếu không giới hạn"/></label>
+      <label>Bắt đầu<input type="datetime-local" value={form.starts_at} onChange={e=>setForm({...form,starts_at:e.target.value})}/></label>
+      <label>Hết hạn<input type="datetime-local" value={form.expires_at} onChange={e=>setForm({...form,expires_at:e.target.value})}/></label>
+      <label className="wide">Mô tả<input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Ưu đãi dành cho khách hàng..."/></label>
+      <label className="admin-news-check wide"><input type="checkbox" checked={form.is_active} onChange={e=>setForm({...form,is_active:e.target.checked})}/> Cho phép khách sử dụng mã</label>
+    </div>
+    <div className="admin-news-editor-actions"><button type="button" onClick={onClose}>Hủy</button><button className="primary" type="submit" disabled={saving}>{saving?"Đang lưu...":"Lưu mã"}</button></div>
+  </form></div>;
+}
+
 // ===================== TRANG CHÍNH =====================
 
 function AdminPage() {
@@ -486,6 +520,9 @@ function AdminPage() {
   const [chatMessages, setChatMessages] = useState([]);
   const [news,setNews]=useState([]);
   const [newsComments,setNewsComments]=useState([]);
+  const [discountCodes,setDiscountCodes]=useState([]);
+  const [editingDiscount,setEditingDiscount]=useState(null);
+  const [showDiscountEditor,setShowDiscountEditor]=useState(false);
   const [editingNews,setEditingNews]=useState(null);
   const [showNewsEditor,setShowNewsEditor]=useState(false);
   const [loading, setLoading] = useState(false);
@@ -505,6 +542,7 @@ function AdminPage() {
       ["chat", "/api/admin/chat-messages", setChatMessages],
       ["news", "/api/admin/news", setNews],
       ["newsComments", "/api/admin/news-comments", setNewsComments],
+      ["discountCodes", "/api/admin/discount-codes", setDiscountCodes],
     ];
     const results = await Promise.allSettled(
       requests.map(async ([, path, setter]) => {
@@ -626,6 +664,7 @@ function AdminPage() {
 
   const filteredNews=useMemo(()=>{const search=normalize(searchTerm);return news.filter(n=>!search||[n.title,n.category,n.summary,n.status].some(v=>normalize(v).includes(search)));},[news,searchTerm]);
   const filteredNewsComments=useMemo(()=>{const search=normalize(searchTerm);return newsComments.filter(c=>!search||[c.customer_name,c.customer_email,c.content,c.news_title,c.status].some(v=>normalize(v).includes(search)));},[newsComments,searchTerm]);
+  const filteredDiscountCodes=useMemo(()=>{const search=normalize(searchTerm);return discountCodes.filter(c=>!search||[c.code,c.description,c.discount_type].some(v=>normalize(v).includes(search)));},[discountCodes,searchTerm]);
 
   const getTabCount = (tab) => {
     if (tab === "orders") return orders.length;
@@ -634,6 +673,7 @@ function AdminPage() {
     if (tab === "chat") return chatMessages.length;
     if (tab === "news") return news.length;
     if (tab === "newsComments") return newsComments.filter(c=>c.status==="pending").length;
+    if (tab === "discountCodes") return discountCodes.length;
     return null;
   };
 
@@ -662,7 +702,8 @@ function AdminPage() {
         ["ID", "Khách hàng", "Email", "Câu hỏi", "Phản hồi chatbot", "Thời gian"],
         ...filteredChatMessages.map((m) => [m.id, m.customer_name, m.customer_email, m.user_message, m.bot_reply, formatDate(m.created_at)]),
       ]);
-    } else if(activeTab==="news") downloadCsv("tin-tuc-thanh-chuong-tra.csv",[["ID","Tiêu đề","Danh mục","Trạng thái","Nổi bật","Ngày"],...filteredNews.map(n=>[n.id,n.title,n.category,n.status,n.is_featured?"Có":"Không",formatDate(n.created_at)])]);
+    } else if(activeTab==="discountCodes") downloadCsv("ma-giam-gia.csv",[["Mã","Loại","Giá trị","Đơn tối thiểu","Đã dùng","Giới hạn","Trạng thái","Hết hạn"],...filteredDiscountCodes.map(c=>[c.code,c.discount_type,c.discount_value,c.min_order_amount,c.used_count,c.usage_limit||"Không giới hạn",c.is_active?"Bật":"Tắt",c.expires_at||""])]);
+    else if(activeTab==="news") downloadCsv("tin-tuc-thanh-chuong-tra.csv",[["ID","Tiêu đề","Danh mục","Trạng thái","Nổi bật","Ngày"],...filteredNews.map(n=>[n.id,n.title,n.category,n.status,n.is_featured?"Có":"Không",formatDate(n.created_at)])]);
     else downloadCsv("binh-luan-tin-tuc.csv",[["ID","Bài viết","Khách hàng","Email","Nội dung","Trạng thái","Ngày"],...filteredNewsComments.map(c=>[c.id,c.news_title,c.customer_name,c.customer_email,c.content,c.status,formatDate(c.created_at)])]);
   };
 
@@ -706,6 +747,7 @@ function AdminPage() {
     { key: "dashboard", label: "Tổng quan", icon: "📊" },
     { key: "orders", label: "Đơn hàng", icon: "🛒" },
     { key: "products", label: "Sản phẩm", icon: "🍃" },
+    { key: "discountCodes", label: "Mã giảm giá", icon: "🏷️" },
     { key: "news", label: "Tin tức", icon: "📰" },
     { key: "newsComments", label: "Bình luận", icon: "💭" },
     { key: "contacts", label: "Liên hệ", icon: "✉️" },
@@ -828,6 +870,7 @@ function AdminPage() {
                 <h2>
                   {activeTab === "orders" && "🛒 Danh sách đơn hàng"}
                   {activeTab === "products" && "🍃 Danh sách sản phẩm"}
+                  {activeTab === "discountCodes" && "🏷️ Quản lý mã giảm giá"}
                   {activeTab === "news" && "📰 Quản lý tin tức"}
                   {activeTab === "newsComments" && "💭 Bình luận bài viết"}
                   {activeTab === "contacts" && "✉️ Liên hệ khách hàng"}
@@ -837,6 +880,7 @@ function AdminPage() {
               </div>
               <div style={{display:"flex",gap:8}}>
                 {activeTab==="news"&&<button type="button" onClick={()=>{setEditingNews(null);setShowNewsEditor(true);}}>＋ Thêm bài viết</button>}
+                {activeTab==="discountCodes"&&<button type="button" onClick={()=>{setEditingDiscount(null);setShowDiscountEditor(true);}}>＋ Tạo mã</button>}
                 <button type="button" onClick={exportCurrentTable}>📥 Xuất CSV</button>
               </div>
             </div>
@@ -1032,6 +1076,15 @@ function AdminPage() {
               </tbody></table>{!loading&&filteredNews.length===0&&<p className="admin-empty">Chưa có bài viết phù hợp.</p>}</div>
             )}
 
+            {activeTab === "discountCodes"&&(
+              <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Mã</th><th>Ưu đãi</th><th>Điều kiện</th><th>Lượt dùng</th><th>Hiệu lực</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>
+                {filteredDiscountCodes.map(c=>{
+                  const expired=c.expires_at&&new Date(c.expires_at)<new Date();
+                  return <tr key={c.id}><td><strong className="discount-code-text">{c.code}</strong><small>{c.description}</small></td><td><strong>{c.discount_type==="percent"?`${Number(c.discount_value)}%`:formatMoney(c.discount_value)}</strong>{c.max_discount_amount&&<small>Tối đa {formatMoney(c.max_discount_amount)}</small>}</td><td>Đơn từ {formatMoney(c.min_order_amount)}</td><td>{c.used_count}/{c.usage_limit||"∞"}</td><td>{c.starts_at?<small>Từ {formatDate(c.starts_at)}</small>:<small>Dùng ngay</small>}<small>{c.expires_at?`Đến ${formatDate(c.expires_at)}`:"Không hết hạn"}</small></td><td><span className={`admin-status ${c.is_active&&!expired?"is-paid":"is-failed"}`}>{expired?"Hết hạn":c.is_active?"Đang bật":"Đã tắt"}</span></td><td><div className="admin-comment-actions"><button onClick={()=>{setEditingDiscount(c);setShowDiscountEditor(true);}}>Sửa</button><button className="danger" onClick={async()=>{if(!confirm(`Xóa mã ${c.code}?`))return;const res=await fetch(`${API_URL}/api/admin/discount-codes/${c.id}`,{method:"DELETE"});if(res.ok)setDiscountCodes(prev=>prev.filter(x=>x.id!==c.id));else alert("Không xóa được mã giảm giá");}}>Xóa</button></div></td></tr>;
+                })}
+              </tbody></table>{!loading&&filteredDiscountCodes.length===0&&<p className="admin-empty">Chưa có mã giảm giá phù hợp.</p>}</div>
+            )}
+
             {activeTab === "newsComments"&&(
               <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>ID</th><th>Bài viết</th><th>Khách hàng</th><th>Bình luận</th><th>Trạng thái</th><th>Ngày gửi</th><th>Hành động</th></tr></thead><tbody>
                 {filteredNewsComments.map(comment=><tr key={comment.id}><td>{comment.id}</td><td><strong>{comment.news_title}</strong></td><td><strong>{comment.customer_name}</strong><small>{comment.customer_email}</small></td><td style={{maxWidth:300,whiteSpace:"normal"}}>{comment.content}</td><td><span className={`admin-status ${comment.status==="approved"?"is-paid":comment.status==="hidden"?"is-failed":"is-pending"}`}>{comment.status==="approved"?"Đã duyệt":comment.status==="hidden"?"Đã ẩn":"Chờ duyệt"}</span></td><td>{formatDate(comment.created_at)}</td><td><div className="admin-comment-actions">{comment.status!=="approved"&&<button onClick={()=>updateNewsComment(comment.id,"approved")}>Duyệt</button>}{comment.status!=="hidden"&&<button onClick={()=>updateNewsComment(comment.id,"hidden")}>Ẩn</button>}<button className="danger" onClick={()=>deleteNewsComment(comment)}>Xóa</button></div></td></tr>)}
@@ -1092,6 +1145,13 @@ function AdminPage() {
           article={editingNews}
           onClose={()=>setShowNewsEditor(false)}
           onSaved={saved=>setNews(prev=>editingNews?prev.map(n=>n.id===saved.id?saved:n):[saved,...prev])}
+        />
+      )}
+      {showDiscountEditor&&(
+        <DiscountCodeModal
+          coupon={editingDiscount}
+          onClose={()=>setShowDiscountEditor(false)}
+          onSaved={saved=>setDiscountCodes(prev=>editingDiscount?prev.map(c=>c.id===saved.id?saved:c):[saved,...prev])}
         />
       )}
     </div>

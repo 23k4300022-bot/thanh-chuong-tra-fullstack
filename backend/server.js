@@ -71,6 +71,30 @@ async function ensureNewsTable() {
   }
 }
 
+async function ensureDiscountTables() {
+  await poolPromise.query(`
+    CREATE TABLE IF NOT EXISTS discount_codes (
+      id BIGSERIAL PRIMARY KEY,
+      code VARCHAR(30) UNIQUE NOT NULL,
+      description VARCHAR(255) NOT NULL DEFAULT '',
+      discount_type VARCHAR(10) NOT NULL CHECK (discount_type IN ('percent','fixed')),
+      discount_value NUMERIC(12,2) NOT NULL CHECK (discount_value > 0),
+      min_order_amount NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (min_order_amount >= 0),
+      max_discount_amount NUMERIC(12,2),
+      usage_limit INTEGER CHECK (usage_limit IS NULL OR usage_limit > 0),
+      used_count INTEGER NOT NULL DEFAULT 0 CHECK (used_count >= 0),
+      starts_at TIMESTAMPTZ,
+      expires_at TIMESTAMPTZ,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_code VARCHAR(30)`);
+  await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal_amount NUMERIC(12,2)`);
+}
+
 /* ===================== GROQ AI CHATBOT CONFIG ===================== */
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
@@ -218,7 +242,8 @@ async function sendOrderSuccessEmail(orderInfo) {
 
   const {
     order_id, customer_name, customer_email, phone, address,
-    note, total_amount, payment_method, payment_status, items,
+    note, subtotal_amount, discount_code, discount_amount,
+    total_amount, payment_method, payment_status, items,
   } = orderInfo;
 
   if (!customer_email) {
@@ -283,7 +308,13 @@ async function sendOrderSuccessEmail(orderInfo) {
             </thead>
             <tbody>${itemRows}</tbody>
           </table>
-          <h2 style="text-align: right; color: #b96b00; margin-top: 24px;">Tổng thanh toán: ${formatMoney(total_amount)}</h2>
+          ${discount_code ? `
+            <div style="margin-top: 20px; text-align: right; color: #1f7a36; line-height: 1.7;">
+              <div>Tạm tính: ${formatMoney(subtotal_amount)}</div>
+              <div><strong>Mã ${discount_code}: -${formatMoney(discount_amount)}</strong></div>
+            </div>
+          ` : ""}
+          <h2 style="text-align: right; color: #b96b00; margin-top: 12px;">Tổng thanh toán: ${formatMoney(total_amount)}</h2>
           <div style="margin-top: 28px; padding: 18px; background: #f3f8ef; border-left: 5px solid #1f7a36; border-radius: 12px;">
             <p style="margin: 0; line-height: 1.7; color: #344034;">
               Cảm ơn bạn đã tin tưởng lựa chọn Thanh Chương Trà.
@@ -558,6 +589,120 @@ app.delete("/api/admin/news-comments/:id", async (req, res) => {
   }
 });
 
+/* ===================== DISCOUNT CODES ===================== */
+
+function normalizeDiscountCode(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function parseDiscountPayload(body) {
+  const code = normalizeDiscountCode(body.code);
+  const discountType = body.discount_type === "fixed" ? "fixed" : "percent";
+  const discountValue = Number(body.discount_value);
+  const minOrderAmount = Math.max(0, Number(body.min_order_amount || 0));
+  const maxDiscountAmount = body.max_discount_amount === "" || body.max_discount_amount == null ? null : Number(body.max_discount_amount);
+  const usageLimit = body.usage_limit === "" || body.usage_limit == null ? null : Number(body.usage_limit);
+
+  if (!/^[A-Z0-9_-]{3,30}$/.test(code)) throw new Error("Mã phải có 3-30 ký tự: chữ, số, _ hoặc -");
+  if (!Number.isFinite(discountValue) || discountValue <= 0) throw new Error("Giá trị giảm phải lớn hơn 0");
+  if (!Number.isFinite(minOrderAmount)) throw new Error("Giá trị đơn tối thiểu không hợp lệ");
+  if (discountType === "percent" && discountValue > 100) throw new Error("Phần trăm giảm không được vượt quá 100");
+  if (maxDiscountAmount != null && (!Number.isFinite(maxDiscountAmount) || maxDiscountAmount <= 0)) throw new Error("Mức giảm tối đa không hợp lệ");
+  if (usageLimit != null && (!Number.isInteger(usageLimit) || usageLimit <= 0)) throw new Error("Giới hạn lượt dùng phải là số nguyên dương");
+  if (body.starts_at && body.expires_at && new Date(body.starts_at) >= new Date(body.expires_at)) throw new Error("Thời gian hết hạn phải sau thời gian bắt đầu");
+
+  return {
+    code,
+    description: String(body.description || "").trim().slice(0, 255),
+    discountType,
+    discountValue,
+    minOrderAmount,
+    maxDiscountAmount,
+    usageLimit,
+    startsAt: body.starts_at || null,
+    expiresAt: body.expires_at || null,
+    isActive: body.is_active !== false,
+  };
+}
+
+async function calculateDiscount(client, rawCode, subtotal, lock = false) {
+  const code = normalizeDiscountCode(rawCode);
+  const amount = Math.max(0, Number(subtotal || 0));
+  if (!code) return { code: "", discountAmount: 0, totalAmount: amount, coupon: null };
+
+  const result = await client.query(`SELECT * FROM discount_codes WHERE code=$1${lock ? " FOR UPDATE" : ""}`, [code]);
+  const coupon = result.rows[0];
+  if (!coupon) throw Object.assign(new Error("Mã giảm giá không tồn tại"), { statusCode: 404 });
+  if (!coupon.is_active) throw Object.assign(new Error("Mã giảm giá đang bị tắt"), { statusCode: 409 });
+  if (coupon.starts_at && new Date(coupon.starts_at) > new Date()) throw Object.assign(new Error("Mã giảm giá chưa đến thời gian sử dụng"), { statusCode: 409 });
+  if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) throw Object.assign(new Error("Mã giảm giá đã hết hạn"), { statusCode: 409 });
+  if (coupon.usage_limit != null && Number(coupon.used_count) >= Number(coupon.usage_limit)) throw Object.assign(new Error("Mã giảm giá đã hết lượt sử dụng"), { statusCode: 409 });
+  if (amount < Number(coupon.min_order_amount || 0)) throw Object.assign(new Error(`Đơn hàng tối thiểu ${formatMoney(coupon.min_order_amount)} để dùng mã này`), { statusCode: 409 });
+
+  let discountAmount = coupon.discount_type === "percent" ? amount * Number(coupon.discount_value) / 100 : Number(coupon.discount_value);
+  if (coupon.max_discount_amount != null) discountAmount = Math.min(discountAmount, Number(coupon.max_discount_amount));
+  discountAmount = Math.min(amount, Math.round(discountAmount));
+  return { code, discountAmount, totalAmount: amount - discountAmount, coupon };
+}
+
+app.post("/api/discount-codes/validate", async (req, res) => {
+  try {
+    if (!normalizeDiscountCode(req.body.code)) return res.status(400).json({ valid:false, message:"Vui lòng nhập mã giảm giá" });
+    const result = await calculateDiscount(poolPromise, req.body.code, req.body.subtotal);
+    res.json({ valid:true, code:result.code, description:result.coupon.description, discount_amount:result.discountAmount, total_amount:result.totalAmount });
+  } catch (error) {
+    res.status(error.statusCode || 400).json({ valid:false, message:error.message });
+  }
+});
+
+app.get("/api/admin/discount-codes", async (req, res) => {
+  try {
+    const result = await poolPromise.query(`SELECT * FROM discount_codes ORDER BY created_at DESC`);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ message:"Lỗi lấy danh sách mã giảm giá", error:error.message });
+  }
+});
+
+app.post("/api/admin/discount-codes", async (req, res) => {
+  try {
+    const d = parseDiscountPayload(req.body);
+    const result = await poolPromise.query(
+      `INSERT INTO discount_codes (code,description,discount_type,discount_value,min_order_amount,max_discount_amount,usage_limit,starts_at,expires_at,is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [d.code,d.description,d.discountType,d.discountValue,d.minOrderAmount,d.maxDiscountAmount,d.usageLimit,d.startsAt,d.expiresAt,d.isActive]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    res.status(error.code === "23505" ? 409 : 400).json({ message:error.code === "23505" ? "Mã giảm giá đã tồn tại" : error.message });
+  }
+});
+
+app.put("/api/admin/discount-codes/:id", async (req, res) => {
+  try {
+    const d = parseDiscountPayload(req.body);
+    const result = await poolPromise.query(
+      `UPDATE discount_codes SET code=$1,description=$2,discount_type=$3,discount_value=$4,min_order_amount=$5,
+       max_discount_amount=$6,usage_limit=$7,starts_at=$8,expires_at=$9,is_active=$10,updated_at=NOW() WHERE id=$11 RETURNING *`,
+      [d.code,d.description,d.discountType,d.discountValue,d.minOrderAmount,d.maxDiscountAmount,d.usageLimit,d.startsAt,d.expiresAt,d.isActive,req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ message:"Không tìm thấy mã giảm giá" });
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(error.code === "23505" ? 409 : 400).json({ message:error.code === "23505" ? "Mã giảm giá đã tồn tại" : error.message });
+  }
+});
+
+app.delete("/api/admin/discount-codes/:id", async (req, res) => {
+  try {
+    const result = await poolPromise.query(`DELETE FROM discount_codes WHERE id=$1 RETURNING id`, [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ message:"Không tìm thấy mã giảm giá" });
+    res.json({ message:"Đã xóa mã giảm giá" });
+  } catch (error) {
+    res.status(500).json({ message:"Lỗi xóa mã giảm giá", error:error.message });
+  }
+});
+
 app.put("/api/products/:id", async (req, res) => {
   try {
     const {
@@ -629,22 +774,26 @@ app.post("/api/contacts", async (req, res) => {
 /* ===================== ORDERS COD / TEST BANK ===================== */
 
 async function reserveOrderStock(client, items) {
+  const quantities = new Map();
   for (const item of items) {
     const productId = Number(item.product_id);
     const quantity = Number(item.quantity);
-
     if (!Number.isInteger(productId) || !Number.isInteger(quantity) || quantity <= 0) {
       const error = new Error("Sản phẩm hoặc số lượng không hợp lệ");
       error.statusCode = 400;
       throw error;
     }
+    quantities.set(productId, (quantities.get(productId) || 0) + quantity);
+  }
 
+  const preparedItems = [];
+  for (const [productId, quantity] of [...quantities.entries()].sort((a,b)=>a[0]-b[0])) {
     const updated = await client.query(
       `UPDATE products
        SET sold_count = sold_count + $1,
            stock = stock - $1
        WHERE id = $2 AND stock >= $1
-       RETURNING id`,
+       RETURNING id,name,weight,price,discount_percent,discount_amount`,
       [quantity, productId]
     );
 
@@ -662,13 +811,26 @@ async function reserveOrderStock(client, items) {
       error.statusCode = product ? 409 : 404;
       throw error;
     }
+
+    const product = updated.rows[0];
+    let unitPrice = Number(product.price || 0);
+    if (Number(product.discount_percent) > 0) unitPrice *= 1 - Number(product.discount_percent) / 100;
+    else if (Number(product.discount_amount) > 0) unitPrice -= Number(product.discount_amount);
+    preparedItems.push({
+      product_id: product.id,
+      name: product.name,
+      weight: product.weight,
+      quantity,
+      price: Math.max(0, Math.round(unitPrice)),
+    });
   }
+  return preparedItems;
 }
 
 app.post("/api/orders", async (req, res) => {
   const {
     customer_name, customer_email, phone, address, note,
-    items, payment_method, bank_name, bank_account, account_holder,
+    items, payment_method, bank_name, bank_account, account_holder, discount_code,
   } = req.body;
 
   console.log(">>> /api/orders payment_method:", JSON.stringify(payment_method));
@@ -696,29 +858,31 @@ app.post("/api/orders", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    let totalAmount = 0;
-    for (const item of items) {
-      totalAmount += Number(item.price) * Number(item.quantity);
-    }
-
-    await reserveOrderStock(client, items);
+    const preparedItems = await reserveOrderStock(client, items);
+    const subtotalAmount = preparedItems.reduce((sum,item)=>sum+item.price*item.quantity,0);
+    const discount = await calculateDiscount(client, discount_code, subtotalAmount, true);
+    const totalAmount = discount.totalAmount;
 
     const orderResult = await client.query(
       `INSERT INTO orders 
-       (customer_name, customer_email, phone, address, note, total_amount, payment_method, payment_status, test_card_number)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       (customer_name, customer_email, phone, address, note, subtotal_amount, discount_code, discount_amount, total_amount, payment_method, payment_status, test_card_number)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING id`,
       [customer_name, customer_email, phone, address, note || "",
-       totalAmount, pm || "COD", paymentStatus, testCardNumber]
+       subtotalAmount, discount.code || null, discount.discountAmount, totalAmount, pm || "COD", paymentStatus, testCardNumber]
     );
 
     const orderId = orderResult.rows[0].id;
 
-    for (const item of items) {
+    for (const item of preparedItems) {
       await client.query(
         `INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)`,
         [orderId, item.product_id, item.quantity, item.price]
       );
+    }
+
+    if (discount.code) {
+      await client.query(`UPDATE discount_codes SET used_count=used_count+1,updated_at=NOW() WHERE code=$1`, [discount.code]);
     }
 
     await client.query("COMMIT");
@@ -733,7 +897,8 @@ app.post("/api/orders", async (req, res) => {
     );
     sendOrderSuccessEmail({
       order_id: orderId, customer_name, customer_email, phone, address, note,
-      total_amount: totalAmount, payment_method: pm || "COD",
+      subtotal_amount: subtotalAmount, discount_code: discount.code,
+      discount_amount: discount.discountAmount, total_amount: totalAmount, payment_method: pm || "COD",
       payment_status: paymentStatus, items: emailItemsResult.rows,
     }).catch((mailError) => {
       console.error("Lỗi gửi email xác nhận:", mailError.message);
@@ -743,6 +908,9 @@ app.post("/api/orders", async (req, res) => {
       message: "Đặt hàng thành công",
       order_id: orderId,
       total_amount: totalAmount,
+      subtotal_amount: subtotalAmount,
+      discount_code: discount.code,
+      discount_amount: discount.discountAmount,
       payment_method: pm || "COD",
       payment_status: paymentStatus,
     });
@@ -780,29 +948,31 @@ app.post("/api/create-vnpay-payment", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    let totalAmount = 0;
-    for (const item of items) {
-      totalAmount += Number(item.price) * Number(item.quantity);
-    }
-
-    await reserveOrderStock(client, items);
+    const preparedItems = await reserveOrderStock(client, items);
+    const subtotalAmount = preparedItems.reduce((sum,item)=>sum+item.price*item.quantity,0);
+    const discount = await calculateDiscount(client, customer.discount_code, subtotalAmount, true);
+    const totalAmount = discount.totalAmount;
 
     const orderResult = await client.query(
       `INSERT INTO orders
-       (customer_name, customer_email, phone, address, note, total_amount, payment_method, payment_status, test_card_number, transaction_code, bank_code)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '', '', '')
+       (customer_name, customer_email, phone, address, note, subtotal_amount, discount_code, discount_amount, total_amount, payment_method, payment_status, test_card_number, transaction_code, bank_code)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, '', '', '')
        RETURNING id`,
       [customer.customer_name, customer.customer_email, customer.phone, customer.address,
-       customer.note || "", totalAmount, "VNPay Sandbox", "Chờ thanh toán VNPay"]
+       customer.note || "", subtotalAmount, discount.code || null, discount.discountAmount, totalAmount, "VNPay Sandbox", "Chờ thanh toán VNPay"]
     );
 
     const orderId = orderResult.rows[0].id;
 
-    for (const item of items) {
+    for (const item of preparedItems) {
       await client.query(
         `INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)`,
         [orderId, item.product_id, item.quantity, item.price]
       );
+    }
+
+    if (discount.code) {
+      await client.query(`UPDATE discount_codes SET used_count=used_count+1,updated_at=NOW() WHERE code=$1`, [discount.code]);
     }
 
     await client.query("COMMIT");
@@ -882,7 +1052,8 @@ app.get("/api/vnpay-return", async (req, res) => {
           order_id: order.id, customer_name: order.customer_name,
           customer_email: order.customer_email, phone: order.phone,
           address: order.address, note: order.note,
-          total_amount: order.total_amount, payment_method: order.payment_method,
+          subtotal_amount: order.subtotal_amount, discount_code: order.discount_code,
+          discount_amount: order.discount_amount, total_amount: order.total_amount, payment_method: order.payment_method,
           payment_status: "Đã thanh toán VNPay Sandbox", items: itemsInfo.rows,
         }).catch((mailError) => {
           console.error("Lỗi gửi email sau thanh toán VNPay:", mailError.message);
@@ -1097,7 +1268,7 @@ app.post("/api/sepay-webhook", async (req, res) => {
 /* ===================== START SERVER ===================== */
 
 const PORT = process.env.PORT || 5000;
-ensureNewsTable()
+Promise.all([ensureNewsTable(), ensureDiscountTables()])
   .then(() => app.listen(PORT, () => console.log(`Server đang chạy tại http://localhost:${PORT}`)))
   .catch((error) => {
     console.error("Không thể khởi tạo bảng tin tức:", error);
