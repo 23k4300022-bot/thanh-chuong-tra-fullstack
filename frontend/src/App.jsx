@@ -220,6 +220,23 @@ function Storefront() {
   const dragStart = useRef(null);
   const hasDragged = useRef(false);
 
+  const clampChatPosition = (position, open = showChatbot) => {
+    const mobile = window.innerWidth <= 480;
+    const toggleSize = mobile ? 58 : 66;
+    const boxWidth = mobile ? window.innerWidth - 28 : 360;
+    const boxHeight = Math.min(mobile ? 470 : 500, window.innerHeight - 100);
+    const maxRight = open
+      ? Math.max(8, window.innerWidth - boxWidth - 8)
+      : Math.max(8, window.innerWidth - toggleSize - 8);
+    const maxBottom = open
+      ? Math.max(8, window.innerHeight - boxHeight - toggleSize - 30)
+      : Math.max(8, window.innerHeight - toggleSize - 8);
+    return {
+      right: Math.max(8, Math.min(maxRight, position.right)),
+      bottom: Math.max(8, Math.min(maxBottom, position.bottom)),
+    };
+  };
+
   const onDragMouseDown = (e) => {
     e.preventDefault();
     hasDragged.current = false;
@@ -233,10 +250,10 @@ function Storefront() {
       const dx = dragStart.current.x - e.clientX;
       const dy = dragStart.current.y - e.clientY;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasDragged.current = true;
-      setDragPos({
-        right: Math.max(8, Math.min(window.innerWidth - 80, dragStart.current.right + dx)),
-        bottom: Math.max(8, Math.min(window.innerHeight - 80, dragStart.current.bottom + dy)),
-      });
+      setDragPos(clampChatPosition({
+        right: dragStart.current.right + dx,
+        bottom: dragStart.current.bottom + dy,
+      }));
     };
     const onUp = () => setIsDragging(false);
     window.addEventListener("mousemove", onMove);
@@ -245,7 +262,13 @@ function Storefront() {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [isDragging]);
+  }, [isDragging, showChatbot]);
+
+  useEffect(() => {
+    const keepChatInViewport = () => setDragPos(pos => clampChatPosition(pos));
+    window.addEventListener("resize", keepChatInViewport);
+    return () => window.removeEventListener("resize", keepChatInViewport);
+  }, [showChatbot]);
 
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "" });
   const [customer, setCustomer] = useState({
@@ -1376,6 +1399,7 @@ function Storefront() {
           onMouseDown={onDragMouseDown}
           onClick={() => {
             if (!hasDragged.current) {
+              if (!showChatbot) setDragPos(pos => clampChatPosition(pos, true));
               setShowChatbot(!showChatbot);
               setShowChatBadge(false);
             }
