@@ -439,6 +439,37 @@ const inputStyle = {
   fontSize: 14, outline: "none",
 };
 
+const emptyNewsForm={title:"",summary:"",content:"",image_url:"",category:"Kiến thức về trà",status:"draft",is_featured:false};
+
+function NewsEditModal({ article, onClose, onSaved }) {
+  const [form,setForm]=useState(article?{...emptyNewsForm,...article}:emptyNewsForm);
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState("");
+  const save=async()=>{
+    setSaving(true);setError("");
+    try{
+      const res=await fetch(`${API_URL}/api/admin/news${article?`/${article.id}`:""}`,{method:article?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(form)});
+      const data=await res.json();
+      if(!res.ok)throw new Error(data.message||"Không lưu được bài viết");
+      onSaved(data);onClose();
+    }catch(err){setError(err.message);}finally{setSaving(false);}
+  };
+  return <div className="admin-news-modal" onClick={onClose}><div className="admin-news-editor" onClick={e=>e.stopPropagation()}>
+    <div className="admin-news-editor-head"><h2>{article?"Sửa bài viết":"Thêm bài viết"}</h2><button onClick={onClose}>×</button></div>
+    <div className="admin-news-form-grid">
+      <label className="wide">Tiêu đề<input value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/></label>
+      <label>Danh mục<select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}><option>Kiến thức về trà</option><option>Cách pha trà</option><option>Câu chuyện thương hiệu</option><option>Khuyến mãi</option><option>Sức khỏe</option></select></label>
+      <label>Trạng thái<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="draft">Bản nháp</option><option value="published">Xuất bản</option></select></label>
+      <label className="wide">Ảnh đại diện (URL)<input value={form.image_url} onChange={e=>setForm({...form,image_url:e.target.value})} placeholder="https://..."/></label>
+      <label className="wide">Mô tả ngắn<textarea rows="3" value={form.summary} onChange={e=>setForm({...form,summary:e.target.value})}/></label>
+      <label className="wide">Nội dung bài viết<textarea rows="12" value={form.content} onChange={e=>setForm({...form,content:e.target.value})}/></label>
+      <label className="admin-news-check wide"><input type="checkbox" checked={form.is_featured} onChange={e=>setForm({...form,is_featured:e.target.checked})}/> Đánh dấu bài nổi bật</label>
+    </div>
+    {error&&<div className="admin-error">{error}</div>}
+    <div className="admin-news-editor-actions"><button onClick={onClose}>Hủy</button><button className="primary" disabled={saving} onClick={save}>{saving?"Đang lưu...":"Lưu bài viết"}</button></div>
+  </div></div>;
+}
+
 // ===================== TRANG CHÍNH =====================
 
 function AdminPage() {
@@ -453,6 +484,9 @@ function AdminPage() {
   const [orders, setOrders] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
+  const [news,setNews]=useState([]);
+  const [editingNews,setEditingNews]=useState(null);
+  const [showNewsEditor,setShowNewsEditor]=useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -468,6 +502,7 @@ function AdminPage() {
       ["orders", "/api/admin/orders", setOrders],
       ["contacts", "/api/admin/contacts", setContacts],
       ["chat", "/api/admin/chat-messages", setChatMessages],
+      ["news", "/api/admin/news", setNews],
     ];
     const results = await Promise.allSettled(
       requests.map(async ([, path, setter]) => {
@@ -587,11 +622,14 @@ function AdminPage() {
     );
   }, [chatMessages, searchTerm]);
 
+  const filteredNews=useMemo(()=>{const search=normalize(searchTerm);return news.filter(n=>!search||[n.title,n.category,n.summary,n.status].some(v=>normalize(v).includes(search)));},[news,searchTerm]);
+
   const getTabCount = (tab) => {
     if (tab === "orders") return orders.length;
     if (tab === "products") return products.length;
     if (tab === "contacts") return contacts.length;
     if (tab === "chat") return chatMessages.length;
+    if (tab === "news") return news.length;
     return null;
   };
 
@@ -615,12 +653,12 @@ function AdminPage() {
         ["ID", "Khách hàng", "Số điện thoại", "Email", "Nội dung", "Ngày gửi"],
         ...filteredContacts.map((c) => [c.id, c.name, c.phone, c.email, c.message, formatDate(c.created_at)]),
       ]);
-    } else {
+    } else if(activeTab === "chat") {
       downloadCsv("chatbot-thanh-chuong-tra.csv", [
         ["ID", "Khách hàng", "Email", "Câu hỏi", "Phản hồi chatbot", "Thời gian"],
         ...filteredChatMessages.map((m) => [m.id, m.customer_name, m.customer_email, m.user_message, m.bot_reply, formatDate(m.created_at)]),
       ]);
-    }
+    } else downloadCsv("tin-tuc-thanh-chuong-tra.csv",[["ID","Tiêu đề","Danh mục","Trạng thái","Nổi bật","Ngày"],...filteredNews.map(n=>[n.id,n.title,n.category,n.status,n.is_featured?"Có":"Không",formatDate(n.created_at)])]);
   };
 
   const handleProductSaved = (updatedProduct) => {
@@ -649,6 +687,7 @@ function AdminPage() {
     { key: "dashboard", label: "Tổng quan", icon: "📊" },
     { key: "orders", label: "Đơn hàng", icon: "🛒" },
     { key: "products", label: "Sản phẩm", icon: "🍃" },
+    { key: "news", label: "Tin tức", icon: "📰" },
     { key: "contacts", label: "Liên hệ", icon: "✉️" },
     { key: "chat", label: "Chatbot", icon: "💬" },
   ];
@@ -769,12 +808,16 @@ function AdminPage() {
                 <h2>
                   {activeTab === "orders" && "🛒 Danh sách đơn hàng"}
                   {activeTab === "products" && "🍃 Danh sách sản phẩm"}
+                  {activeTab === "news" && "📰 Quản lý tin tức"}
                   {activeTab === "contacts" && "✉️ Liên hệ khách hàng"}
                   {activeTab === "chat" && "💬 Tin nhắn chatbot"}
                 </h2>
                 <span>Theo dõi và tra cứu dữ liệu trực tiếp từ hệ thống</span>
               </div>
-              <button type="button" onClick={exportCurrentTable}>📥 Xuất CSV</button>
+              <div style={{display:"flex",gap:8}}>
+                {activeTab==="news"&&<button type="button" onClick={()=>{setEditingNews(null);setShowNewsEditor(true);}}>＋ Thêm bài viết</button>}
+                <button type="button" onClick={exportCurrentTable}>📥 Xuất CSV</button>
+              </div>
             </div>
 
             <div className="admin-toolbar">
@@ -962,6 +1005,12 @@ function AdminPage() {
               </>
             )}
 
+            {activeTab === "news"&&(
+              <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>ID</th><th>Bài viết</th><th>Danh mục</th><th>Trạng thái</th><th>Nổi bật</th><th>Cập nhật</th><th>Hành động</th></tr></thead><tbody>
+                {filteredNews.map(article=><tr key={article.id}><td>{article.id}</td><td><strong>{article.title}</strong><small>{article.summary}</small></td><td>{article.category}</td><td><span className={`admin-status ${article.status==="published"?"is-paid":"is-pending"}`}>{article.status==="published"?"Đã xuất bản":"Bản nháp"}</span></td><td>{article.is_featured?"⭐ Có":"—"}</td><td>{formatDate(article.updated_at)}</td><td><div style={{display:"flex",gap:6}}><button className="admin-row-btn" onClick={()=>{setEditingNews(article);setShowNewsEditor(true);}}>Sửa</button><button className="admin-row-btn danger" onClick={async()=>{if(!confirm(`Xóa bài “${article.title}”?`))return;const res=await fetch(`${API_URL}/api/admin/news/${article.id}`,{method:"DELETE"});if(res.ok)setNews(prev=>prev.filter(n=>n.id!==article.id));else alert("Không xóa được bài viết");}}>Xóa</button></div></td></tr>)}
+              </tbody></table>{!loading&&filteredNews.length===0&&<p className="admin-empty">Chưa có bài viết phù hợp.</p>}</div>
+            )}
+
             {activeTab === "contacts" && (
               <div className="admin-table-wrap">
                 <table className="admin-table">
@@ -1009,6 +1058,13 @@ function AdminPage() {
           product={editingProduct}
           onClose={() => setEditingProduct(null)}
           onSaved={handleProductSaved}
+        />
+      )}
+      {showNewsEditor&&(
+        <NewsEditModal
+          article={editingNews}
+          onClose={()=>setShowNewsEditor(false)}
+          onSaved={saved=>setNews(prev=>editingNews?prev.map(n=>n.id===saved.id?saved:n):[saved,...prev])}
         />
       )}
     </div>

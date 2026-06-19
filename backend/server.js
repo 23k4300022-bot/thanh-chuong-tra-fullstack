@@ -12,6 +12,44 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+function createSlug(value) {
+  return String(value || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d").replace(/Đ/g, "D")
+    .toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+async function ensureNewsTable() {
+  await poolPromise.query(`
+    CREATE TABLE IF NOT EXISTS news (
+      id BIGSERIAL PRIMARY KEY,
+      title VARCHAR(220) NOT NULL,
+      slug VARCHAR(240) UNIQUE NOT NULL,
+      summary TEXT NOT NULL DEFAULT '',
+      content TEXT NOT NULL DEFAULT '',
+      image_url TEXT NOT NULL DEFAULT '',
+      category VARCHAR(100) NOT NULL DEFAULT 'Kiến thức về trà',
+      status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published')),
+      is_featured BOOLEAN NOT NULL DEFAULT FALSE,
+      published_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await poolPromise.query(`CREATE INDEX IF NOT EXISTS news_status_date_idx ON news(status, published_at DESC)`);
+  const seedArticles = [
+    ["Cách pha trà xanh không bị đắng", "cach-pha-tra-xanh-khong-bi-dang", "Những nguyên tắc đơn giản về lượng trà, nhiệt độ nước và thời gian hãm giúp chén trà xanh thơm dịu, hậu ngọt.", "Một chén trà ngon bắt đầu từ nước sạch và ấm trà đã được làm nóng. Với ấm 150–200ml, bạn nên dùng khoảng 5–8g trà.\n\nNước pha phù hợp ở khoảng 80–90°C. Nước quá sôi dễ làm vị trà gắt và mất đi hương thơm tự nhiên. Hãm trà từ 20–30 giây cho lần đầu, sau đó tăng nhẹ thời gian ở những lần pha tiếp theo.\n\nKhi rót, hãy rót đều ra các chén để màu nước và hương vị đồng nhất. Thưởng thức khi trà còn ấm để cảm nhận rõ hậu vị ngọt thanh.", "https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=1200&q=85", "Cách pha trà", true],
+    ["Trà Thanh Chương có gì đặc biệt?", "tra-thanh-chuong-co-gi-dac-biet", "Khám phá vùng chè xứ Nghệ và nét mộc mạc tạo nên hương vị riêng của trà Thanh Chương.", "Thanh Chương, Nghệ An có khí hậu và thổ nhưỡng phù hợp cho cây chè phát triển. Những đồi chè xanh bên sông và bàn tay chăm sóc của người dân địa phương tạo nên nguồn nguyên liệu mang hương vị mộc mạc đặc trưng.\n\nTrà Thanh Chương thường có màu nước xanh vàng, hương thơm tự nhiên, vị chát dịu và hậu ngọt. Đây là thức uống gần gũi trong đời sống hằng ngày và cũng là món quà mang đậm dấu ấn quê hương xứ Nghệ.", "https://images.unsplash.com/photo-1563911892437-1feda0179e1b?auto=format&fit=crop&w=1200&q=85", "Câu chuyện thương hiệu", true],
+    ["Bảo quản trà thế nào để giữ hương lâu?", "bao-quan-tra-de-giu-huong-lau", "Hướng dẫn bảo quản trà tránh ánh sáng, độ ẩm và mùi mạnh để giữ trọn hương vị.", "Trà khô rất dễ hút ẩm và hấp thụ mùi từ môi trường xung quanh. Sau khi mở gói, hãy cho trà vào hộp kín, sạch và khô.\n\nNên đặt hộp trà ở nơi thoáng mát, tránh ánh nắng trực tiếp và không để cạnh cà phê, gia vị hoặc thực phẩm có mùi mạnh. Mỗi lần lấy trà, hãy dùng thìa khô và đóng nắp ngay sau khi sử dụng.\n\nĐể có hương vị tốt nhất, nên dùng trà trong khoảng sáu tháng sau khi mở.", "https://images.unsplash.com/photo-1594631252845-29fc4cc8cde9?auto=format&fit=crop&w=1200&q=85", "Kiến thức về trà", false]
+  ];
+  for (const article of seedArticles) {
+    await poolPromise.query(
+      `INSERT INTO news (title,slug,summary,content,image_url,category,status,is_featured,published_at)
+       VALUES ($1,$2,$3,$4,$5,$6,'published',$7,NOW()) ON CONFLICT (slug) DO NOTHING`, article
+    );
+  }
+}
+
 /* ===================== GROQ AI CHATBOT CONFIG ===================== */
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
@@ -317,6 +355,84 @@ app.get("/api/products/:id", async (req, res) => {
   } catch (error) {
     console.error("Lỗi lấy chi tiết sản phẩm:", error);
     res.status(500).json({ message: "Lỗi chi tiết sản phẩm", error: error.message });
+  }
+});
+
+/* ===================== NEWS ===================== */
+
+app.get("/api/news", async (req, res) => {
+  try {
+    const result = await poolPromise.query(
+      `SELECT id,title,slug,summary,image_url,category,is_featured,published_at,created_at
+       FROM news WHERE status='published' ORDER BY is_featured DESC, COALESCE(published_at,created_at) DESC`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi lấy tin tức", error: error.message });
+  }
+});
+
+app.get("/api/news/:slug", async (req, res) => {
+  try {
+    const result = await poolPromise.query(`SELECT * FROM news WHERE slug=$1 AND status='published'`, [req.params.slug]);
+    if (!result.rows.length) return res.status(404).json({ message: "Không tìm thấy bài viết" });
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi lấy bài viết", error: error.message });
+  }
+});
+
+app.get("/api/admin/news", async (req, res) => {
+  try {
+    const result = await poolPromise.query(`SELECT * FROM news ORDER BY updated_at DESC`);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi lấy tin tức quản trị", error: error.message });
+  }
+});
+
+app.post("/api/admin/news", async (req, res) => {
+  try {
+    const { title, summary, content, image_url, category, status, is_featured } = req.body;
+    if (!title?.trim() || !content?.trim()) return res.status(400).json({ message: "Tiêu đề và nội dung là bắt buộc" });
+    const baseSlug = createSlug(req.body.slug || title) || `bai-viet-${Date.now()}`;
+    const duplicate = await poolPromise.query(`SELECT 1 FROM news WHERE slug=$1`, [baseSlug]);
+    const slug = duplicate.rows.length ? `${baseSlug}-${Date.now().toString().slice(-6)}` : baseSlug;
+    const result = await poolPromise.query(
+      `INSERT INTO news (title,slug,summary,content,image_url,category,status,is_featured,published_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CASE WHEN $7='published' THEN NOW() ELSE NULL END) RETURNING *`,
+      [title.trim(), slug, summary?.trim() || "", content.trim(), image_url?.trim() || "", category?.trim() || "Kiến thức về trà", status === "published" ? "published" : "draft", Boolean(is_featured)]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi tạo bài viết", error: error.message });
+  }
+});
+
+app.put("/api/admin/news/:id", async (req, res) => {
+  try {
+    const { title, summary, content, image_url, category, status, is_featured } = req.body;
+    if (!title?.trim() || !content?.trim()) return res.status(400).json({ message: "Tiêu đề và nội dung là bắt buộc" });
+    const result = await poolPromise.query(
+      `UPDATE news SET title=$1,summary=$2,content=$3,image_url=$4,category=$5,status=$6,is_featured=$7,
+       published_at=CASE WHEN $6='published' THEN COALESCE(published_at,NOW()) ELSE published_at END,updated_at=NOW()
+       WHERE id=$8 RETURNING *`,
+      [title.trim(), summary?.trim() || "", content.trim(), image_url?.trim() || "", category?.trim() || "Kiến thức về trà", status === "published" ? "published" : "draft", Boolean(is_featured), req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ message: "Không tìm thấy bài viết" });
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi cập nhật bài viết", error: error.message });
+  }
+});
+
+app.delete("/api/admin/news/:id", async (req, res) => {
+  try {
+    const result = await poolPromise.query(`DELETE FROM news WHERE id=$1 RETURNING id`, [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ message: "Không tìm thấy bài viết" });
+    res.json({ message: "Đã xóa bài viết" });
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi xóa bài viết", error: error.message });
   }
 });
 
@@ -836,6 +952,9 @@ app.post("/api/sepay-webhook", async (req, res) => {
 /* ===================== START SERVER ===================== */
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server đang chạy tại http://localhost:${PORT}`);
-});
+ensureNewsTable()
+  .then(() => app.listen(PORT, () => console.log(`Server đang chạy tại http://localhost:${PORT}`)))
+  .catch((error) => {
+    console.error("Không thể khởi tạo bảng tin tức:", error);
+    process.exit(1);
+  });

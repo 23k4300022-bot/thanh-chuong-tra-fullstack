@@ -38,6 +38,8 @@ function saveCheckoutProfile(accountEmail, customer) {
   }
 }
 
+const formatNewsDate = value => value ? new Date(value).toLocaleDateString("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }) : "";
+
 function TeaGuideIcon({ name, size = 26 }) {
   const paths = {
     scale: (
@@ -185,6 +187,8 @@ function PolicyModal({ type, onClose }) {
 
 function Storefront() {
   const [products, setProducts] = useState([]);
+  const [news, setNews] = useState([]);
+  const [selectedNews, setSelectedNews] = useState(null);
   const [cart, setCart] = useState([]);
   const [activeCategory, setActiveCategory] = useState("Tất cả");
   const [searchQuery, setSearchQuery] = useState("");
@@ -252,6 +256,10 @@ function Storefront() {
       .then(res => res.json())
       .then(data => setProducts(Array.isArray(data) ? data : []))
       .catch(err => console.error("Lỗi lấy sản phẩm:", err));
+    fetch(`${API_URL}/api/news`)
+      .then(res => res.json())
+      .then(data => setNews(Array.isArray(data) ? data : []))
+      .catch(err => console.error("Lỗi lấy tin tức:", err));
     const savedUser = localStorage.getItem("thanh_chuong_user");
     if (savedUser) setCurrentUser(JSON.parse(savedUser));
   }, []);
@@ -290,6 +298,17 @@ function Storefront() {
     e.preventDefault();
     setActiveCategory("Tất cả");
     document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const openNewsArticle = async article => {
+    try {
+      const res = await fetch(`${API_URL}/api/news/${article.slug}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Không tải được bài viết");
+      setSelectedNews(data);
+    } catch (error) {
+      alert(error.message);
+    }
   };
 
   const giftProducts = useMemo(() => products.filter(item => String(item.category || "").toLowerCase().includes("hộp quà")), [products]);
@@ -482,6 +501,7 @@ function Storefront() {
     { href: "#about", label: "Giới thiệu" },
     { href: "#products", label: "Sản phẩm" },
     { href: "#gift", label: "Hộp quà" },
+    { href: "#news", label: "Tin tức" },
     { href: "#guide", label: "Cách pha trà" },
     { href: "#contact", label: "Liên hệ" },
   ];
@@ -834,6 +854,31 @@ function Storefront() {
           </div>
         </section>
 
+        <section className="news-section" id="news">
+          <div className="section-heading">
+            <p className="eyebrow green">Chuyện trà mỗi ngày</p>
+            <h2>Tin tức & kiến thức về trà</h2>
+            <p>Khám phá cách pha, bảo quản và những câu chuyện mộc mạc từ vùng chè Thanh Chương.</p>
+          </div>
+          <div className="news-grid">
+            {news.slice(0,6).map((article,index)=>(
+              <article className={`news-card${index===0&&article.is_featured?" featured":""}`} key={article.id}>
+                <button className="news-image-button" type="button" onClick={()=>openNewsArticle(article)}>
+                  <img src={article.image_url||logo} alt={article.title}/>
+                  {article.is_featured&&<span className="news-featured-badge">Nổi bật</span>}
+                </button>
+                <div className="news-card-body">
+                  <div className="news-meta"><span>{article.category}</span><time>{formatNewsDate(article.published_at||article.created_at)}</time></div>
+                  <h3><button type="button" onClick={()=>openNewsArticle(article)}>{article.title}</button></h3>
+                  <p>{article.summary}</p>
+                  <button className="news-read-more" type="button" onClick={()=>openNewsArticle(article)}>Đọc bài viết <span>→</span></button>
+                </div>
+              </article>
+            ))}
+            {news.length===0&&<p className="news-empty">Tin tức đang được cập nhật.</p>}
+          </div>
+        </section>
+
         <section className="guide-section" id="guide">
   <div className="section-heading">
     <p className="eyebrow green">Thưởng trà</p>
@@ -1017,6 +1062,21 @@ function Storefront() {
       )}
 
       {showPolicyModal && <PolicyModal type={showPolicyModal} onClose={() => setShowPolicyModal(null)} />}
+
+      {selectedNews&&(
+        <div className="modal news-modal" onClick={()=>setSelectedNews(null)}>
+          <article className="news-detail" onClick={e=>e.stopPropagation()}>
+            <button className="close" type="button" onClick={()=>setSelectedNews(null)}>×</button>
+            <img className="news-detail-cover" src={selectedNews.image_url||logo} alt={selectedNews.title}/>
+            <div className="news-detail-content">
+              <div className="news-meta"><span>{selectedNews.category}</span><time>{formatNewsDate(selectedNews.published_at||selectedNews.created_at)}</time></div>
+              <h2>{selectedNews.title}</h2>
+              {selectedNews.summary&&<p className="news-detail-summary">{selectedNews.summary}</p>}
+              <div className="news-detail-text">{selectedNews.content}</div>
+            </div>
+          </article>
+        </div>
+      )}
 
       {showAuth && (
         <div className="modal">

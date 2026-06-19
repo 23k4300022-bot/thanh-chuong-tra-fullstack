@@ -132,6 +132,16 @@
 .stat-card.is-revenue { background: #f0f8ff; border-color: #b8d8f8; }
 .stat-card.is-month   { background: #fdf5ff; border-color: #e0c8f8; }
 .stat-icon { font-size: 22px; margin-bottom: 8px; }
+
+.admin-news-modal { position:fixed; inset:0; z-index:10000; padding:20px; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; }
+.admin-news-editor { width:min(820px,100%); max-height:94vh; overflow-y:auto; background:#fff; border-radius:18px; padding:24px; box-shadow:0 24px 70px rgba(0,0,0,.3); }
+.admin-news-editor-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
+.admin-news-editor-head h2 { margin:0; color:#174421; font-size:20px; }.admin-news-editor-head button { border:0; background:none; font-size:26px; cursor:pointer; }
+.admin-news-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }.admin-news-form-grid label { display:flex; flex-direction:column; gap:6px; color:#344034; font-size:12px; font-weight:700; text-align:left; }.admin-news-form-grid .wide { grid-column:1/-1; }
+.admin-news-form-grid input,.admin-news-form-grid select,.admin-news-form-grid textarea { padding:10px 12px; border:1px solid #d9e2d5; border-radius:9px; background:#fff; color:#263326; font:inherit; font-weight:400; resize:vertical; }.admin-news-form-grid input:focus,.admin-news-form-grid textarea:focus,.admin-news-form-grid select:focus { outline:2px solid rgba(31,122,54,.18); border-color:#1f7a36; }
+.admin-news-form-grid .admin-news-check { flex-direction:row; align-items:center; }.admin-news-check input { width:17px; height:17px; }
+.admin-news-editor-actions { margin-top:18px; display:flex; justify-content:flex-end; gap:9px; }.admin-news-editor-actions button,.admin-row-btn { padding:8px 14px; border:1px solid #d9e2d5; border-radius:8px; background:#f7f9f6; color:#344034; font-weight:700; cursor:pointer; }.admin-news-editor-actions .primary { background:#1f7a36; color:#fff; border-color:#1f7a36; }.admin-row-btn.danger { color:#b42318; background:#fff3f2; border-color:#ffd3cf; }
+@media(max-width:600px){.admin-news-form-grid{grid-template-columns:1fr}.admin-news-form-grid .wide{grid-column:auto}.admin-news-editor{padding:18px}}
 .stat-card span   { display: block; color: #6a7a68; font-size: 12px; margin-bottom: 4px; }
 .stat-card strong { display: block; color: #123b1d; font-size: 22px; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; }
 .growth-badge {

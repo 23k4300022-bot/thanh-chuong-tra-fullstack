@@ -272,6 +272,7 @@ select {
 #about,
 #products,
 #gift,
+#news,
 #guide,
 #contact {
   scroll-margin-top: 194px;
@@ -853,6 +854,32 @@ select {
 
 /* ===== GUIDE ===== */
 
+.news-section { padding:80px 5%; background:#fffdf6; }
+.news-grid { max-width:1100px; margin:0 auto; display:grid; grid-template-columns:repeat(3,1fr); gap:24px; }
+.news-card { background:#fff; border:1px solid #e2eadc; border-radius:20px; overflow:hidden; box-shadow:0 5px 22px rgba(23,68,33,.07); text-align:left; transition:transform .2s,box-shadow .2s; }
+.news-card:hover { transform:translateY(-4px); box-shadow:0 14px 34px rgba(23,68,33,.13); }
+.news-image-button { position:relative; display:block; width:100%; height:210px; padding:0; border:0; background:#eef4eb; cursor:pointer; overflow:hidden; }
+.news-image-button img { width:100%; height:100%; object-fit:cover; transition:transform .35s; }
+.news-card:hover .news-image-button img { transform:scale(1.04); }
+.news-featured-badge { position:absolute; top:14px; left:14px; padding:5px 10px; border-radius:99px; background:#f2ca68; color:#174421; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; }
+.news-card-body { padding:20px; }
+.news-meta { display:flex; align-items:center; justify-content:space-between; gap:10px; color:#8b947f; font-size:11px; }
+.news-meta span { color:#1f7a36; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+.news-card h3 { margin:10px 0 9px; line-height:1.35; }
+.news-card h3 button { padding:0; border:0; background:none; color:#174421; font:inherit; font-size:18px; font-weight:850; text-align:left; cursor:pointer; }
+.news-card-body>p { margin:0; min-height:62px; color:#667066; font-size:13px; line-height:1.6; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.news-read-more { margin-top:16px; padding:0; border:0; background:none; color:#1f7a36; font-size:12px; font-weight:900; cursor:pointer; }
+.news-read-more span { margin-left:4px; transition:margin .2s; }.news-read-more:hover span { margin-left:8px; }
+.news-empty { grid-column:1/-1; text-align:center; color:#879184; }
+.news-modal { padding:24px; overflow-y:auto; align-items:flex-start; }
+.news-detail { position:relative; width:min(820px,100%); margin:auto; background:#fff; border-radius:24px; overflow:hidden; text-align:left; box-shadow:0 24px 70px rgba(0,0,0,.3); }
+.news-detail .close { position:absolute; top:14px; right:14px; z-index:2; background:rgba(13,46,20,.85); color:#fff; }
+.news-detail-cover { width:100%; height:360px; object-fit:cover; display:block; }
+.news-detail-content { padding:32px 38px 42px; }
+.news-detail-content h2 { margin:12px 0; color:#174421; font-size:32px; line-height:1.25; text-align:left; }
+.news-detail-summary { color:#667066; font-size:16px; line-height:1.7; font-weight:600; }
+.news-detail-text { color:#354238; font-size:15px; line-height:1.9; white-space:pre-line; }
+
 .guide-section {
   background: #f7f2df;
 }
@@ -1386,8 +1413,8 @@ select {
   .header-main-row { grid-template-columns:210px minmax(180px,1fr) auto; }
   .brand-logo-box { width:64px; height:64px; min-width:64px; max-width:64px; }
   .main-nav a { padding:0 15px; }
-  #home, #about, #products, #gift, #guide, #contact { scroll-margin-top: 194px; }
-  .product-grid, .guide-grid { grid-template-columns: repeat(2, 1fr); }
+  #home, #about, #products, #gift, #news, #guide, #contact { scroll-margin-top: 194px; }
+  .product-grid, .guide-grid, .news-grid { grid-template-columns: repeat(2, 1fr); }
   .gift-section, .about-card, .contact-section, .detail-grid { grid-template-columns: 1fr; }
   .gift-card { grid-template-columns: 180px 1fr; }
   .about-two-col { grid-template-columns: 1fr; gap: 2rem; }
@@ -1402,14 +1429,14 @@ select {
   .brand-text strong { font-size: 14px; }
   .brand-text small { font-size: 11px; }
   .header-search { grid-column:1/-1; grid-row:2; width:100%; height:44px; }
-  #home, #about, #products, #gift, #guide, #contact { scroll-margin-top: 170px; }
+  #home, #about, #products, #gift, #news, #guide, #contact { scroll-margin-top: 170px; }
   .hero { padding: 60px 24px; }
   .hero h1 { font-size: 44px; }
   .hero h2 { font-size: 26px; }
   .hero-actions { flex-direction: column; align-items: flex-start; }
-  .category-section, .products-section, .about-section, .about-story-section,
+  .category-section, .products-section, .about-section, .about-story-section, .news-section,
   .guide-section, .contact-section, .gift-section { padding: 50px 22px; }
-  .product-grid, .guide-grid, .about-features { grid-template-columns: 1fr; }
+  .product-grid, .guide-grid, .news-grid, .about-features { grid-template-columns: 1fr; }
   .gift-card { grid-template-columns: 1fr; }
   .gift-card img { height: 220px; }
   .cart-item { grid-template-columns: 1fr; }
