@@ -1094,7 +1094,6 @@ function Storefront() {
           setCustomer={setCustomer}
           onSubmit={submitOrder}
           onVnpay={payWithVnpay}
-          currentUser={currentUser}
         />
       )}
 
