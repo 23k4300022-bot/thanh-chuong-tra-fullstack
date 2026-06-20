@@ -279,7 +279,9 @@ function Storefront() {
     account_holder: "", otp: "", vnp_bank_code: "", vnp_card_number: "",
     vnp_card_holder: "", vnp_issue_date: "", vnp_otp: "",
   });
-  const [contact, setContact] = useState({ name: "", phone: "", email: "", message: "" });
+  const [contact, setContact] = useState({ name: "", phone: "", email: "", topic: "Tư vấn sản phẩm", message: "" });
+  const [contactStatus, setContactStatus] = useState({ type: "", message: "" });
+  const [contactSubmitting, setContactSubmitting] = useState(false);
 
   useEffect(() => {
     fetch(`${API_URL}/api/products`)
@@ -555,15 +557,31 @@ function Storefront() {
 
   const submitContact = async e => {
     e.preventDefault();
+    setContactStatus({ type: "", message: "" });
+    if (!contact.phone.trim() && !contact.email.trim()) {
+      setContactStatus({ type: "error", message: "Vui lòng nhập số điện thoại hoặc email để shop phản hồi." });
+      return;
+    }
+    if (contact.phone.trim() && !/^0\d{9}$/.test(contact.phone.replace(/\s/g, ""))) {
+      setContactStatus({ type: "error", message: "Số điện thoại cần đúng 10 số và bắt đầu bằng 0." });
+      return;
+    }
+    setContactSubmitting(true);
     try {
       const res = await fetch(`${API_URL}/api/contacts`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(contact),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...contact, message: `[${contact.topic}] ${contact.message.trim()}` }),
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.message || "Gửi liên hệ thất bại"); return; }
-      alert("Gửi liên hệ thành công!");
-      setContact({ name: "", phone: "", email: "", message: "" });
-    } catch (error) { alert("Lỗi kết nối khi gửi liên hệ"); console.error(error); }
+      if (!res.ok) { setContactStatus({ type: "error", message: data.message || "Gửi liên hệ thất bại." }); return; }
+      setContactStatus({ type: "success", message: "Đã gửi yêu cầu! Shop sẽ phản hồi bạn trong thời gian sớm nhất." });
+      setContact({ name: "", phone: "", email: "", topic: "Tư vấn sản phẩm", message: "" });
+    } catch (error) {
+      setContactStatus({ type: "error", message: "Không thể kết nối để gửi liên hệ. Vui lòng thử lại." });
+      console.error(error);
+    } finally {
+      setContactSubmitting(false);
+    }
   };
 
   const sendChatMessage = async () => {
@@ -1120,40 +1138,43 @@ function Storefront() {
   </div>
 </section>
         <section className="contact-section" id="contact">
-          <div>
-            <p className="eyebrow green">Liên hệ</p>
-            <h2>Đặt mua Thanh Chương Trà</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28, marginTop: 20 }}>
-              {[
-                { icon: "📞", label: "Hotline", value: SHOP_PHONE },
-                { icon: "✉️", label: "Email", value: SHOP_EMAIL },
-                { icon: "📍", label: "Địa chỉ", value: "Thanh Chương, Nghệ An" },
-                { icon: "🕐", label: "Giờ làm việc", value: "7:00 – 21:00 hàng ngày" },
-              ].map(item => (
-                <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 16px", backdropFilter: "blur(4px)" }}>
-                  <span style={{ fontSize: 20 }}>{item.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 1 }}>{item.label}</div>
-                    <div style={{ fontWeight: 600 }}>{item.value}</div>
-                  </div>
-                </div>
-              ))}
+          <div className="contact-info-panel">
+            <p className="eyebrow green">Kết nối với chúng tôi</p>
+            <h2>Thanh Chương Trà luôn sẵn lòng lắng nghe</h2>
+            <p className="contact-lead">Bạn cần chọn trà, tư vấn hộp quà hay hỗ trợ một đơn hàng? Hãy liên hệ theo cách thuận tiện nhất, chúng tôi sẽ phản hồi tận tình.</p>
+            <div className="contact-direct-grid">
+              <a href={`tel:${SHOP_PHONE}`} className="contact-direct-card"><span className="contact-direct-icon">📞</span><span><small>Gọi trực tiếp</small><strong>{SHOP_PHONE}</strong></span><b>→</b></a>
+              <a href={`mailto:${SHOP_EMAIL}`} className="contact-direct-card"><span className="contact-direct-icon">✉️</span><span><small>Gửi email</small><strong>{SHOP_EMAIL}</strong></span><b>→</b></a>
+              <a href={`https://zalo.me/${SHOP_PHONE}`} target="_blank" rel="noopener noreferrer" className="contact-direct-card"><span className="contact-direct-icon">💬</span><span><small>Nhắn qua Zalo</small><strong>Phản hồi nhanh</strong></span><b>→</b></a>
+              <div className="contact-direct-card is-static"><span className="contact-direct-icon">📍</span><span><small>Địa chỉ</small><strong>Thanh Chương, Nghệ An</strong></span></div>
             </div>
-            <div style={{ borderRadius: 16, overflow: "hidden", border: "3px solid rgba(255,255,255,0.15)" }}>
+            <div className="contact-availability"><span /> <strong>Đang nhận tư vấn</strong> · 7:00–21:00 hằng ngày · Phản hồi dự kiến trong 2 giờ</div>
+            <div className="contact-map">
               <iframe
                 title="Bản đồ Thanh Chương, Nghệ An"
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d59877.11!2d105.2!3d18.73!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x313685b5a3c3ef8b%3A0x5e5e5e5e5e5e5e5e!2sThanh%20Ch%C6%B0%C6%A1ng%2C%20Ngh%E1%BB%87%20An!5e0!3m2!1svi!2svn!4v1"
-                width="100%" height="220" style={{ border: 0, display: "block" }}
+                width="100%" height="190" style={{ border: 0, display: "block" }}
                 allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade"
               />
+              <span>Vùng chè Thanh Chương · Nghệ An</span>
             </div>
           </div>
           <form className="contact-form" onSubmit={submitContact}>
-            <input type="text" placeholder="Họ và tên" value={contact.name} onChange={e => setContact({ ...contact, name: e.target.value })} required />
-            <input type="text" placeholder="Số điện thoại" value={contact.phone} onChange={e => setContact({ ...contact, phone: e.target.value })} />
-            <input type="email" placeholder="Email" value={contact.email} onChange={e => setContact({ ...contact, email: e.target.value })} />
-            <textarea placeholder="Nội dung cần tư vấn" value={contact.message} onChange={e => setContact({ ...contact, message: e.target.value })} required />
-            <button>Gửi liên hệ</button>
+            <div className="contact-form-head">
+              <span>Hỗ trợ khách hàng</span>
+              <h3>Gửi yêu cầu tư vấn</h3>
+              <p>Điền thông tin bên dưới, shop sẽ liên hệ lại theo số điện thoại hoặc email của bạn.</p>
+            </div>
+            <div className="contact-form-grid">
+              <label className="contact-field contact-field-full"><span>Họ và tên <b>*</b></span><input type="text" placeholder="Ví dụ: Nguyễn Minh Anh" value={contact.name} onChange={e => setContact({ ...contact, name: e.target.value })} required /></label>
+              <label className="contact-field"><span>Số điện thoại</span><input type="tel" inputMode="numeric" maxLength={10} placeholder="0xxx xxx xxx" value={contact.phone} onChange={e => setContact({ ...contact, phone: e.target.value.replace(/\D/g, "") })} /></label>
+              <label className="contact-field"><span>Email</span><input type="email" placeholder="ban@email.com" value={contact.email} onChange={e => setContact({ ...contact, email: e.target.value })} /></label>
+              <label className="contact-field contact-field-full"><span>Bạn cần hỗ trợ về</span><select value={contact.topic} onChange={e => setContact({ ...contact, topic: e.target.value })}><option>Tư vấn sản phẩm</option><option>Tư vấn hộp quà</option><option>Hỗ trợ đơn hàng</option><option>Đổi trả sản phẩm</option><option>Hợp tác và mua số lượng lớn</option><option>Góp ý khác</option></select></label>
+              <label className="contact-field contact-field-full"><span>Nội dung cần tư vấn <b>*</b></span><textarea maxLength={1000} placeholder="Hãy mô tả sản phẩm, nhu cầu hoặc mã đơn hàng nếu có..." value={contact.message} onChange={e => setContact({ ...contact, message: e.target.value })} required /><small>{contact.message.length}/1000 ký tự</small></label>
+            </div>
+            <p className="contact-privacy">🔒 Thông tin của bạn chỉ được dùng để hỗ trợ yêu cầu này.</p>
+            {contactStatus.message && <div className={`contact-status ${contactStatus.type}`}>{contactStatus.message}</div>}
+            <button type="submit" disabled={contactSubmitting}>{contactSubmitting ? "Đang gửi yêu cầu..." : "Gửi yêu cầu tư vấn"}<span>→</span></button>
           </form>
         </section>
       </main>

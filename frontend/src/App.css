@@ -1163,25 +1163,73 @@ select {
 /* ===== CONTACT ===== */
 
 .contact-section {
-  max-width: 1180px;
-  margin: auto;
+  max-width: 1280px;
+  margin: 80px auto;
+  padding: 18px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 44px;
+  grid-template-columns: 1.08fr .92fr;
+  gap: 18px;
+  border: 1px solid #dce7d5;
+  border-radius: 32px;
+  background: linear-gradient(145deg, #f1f6ec, #fbfaf4);
+  box-shadow: 0 24px 70px rgba(25, 72, 35, .1);
 }
 
 .contact-section p {
   line-height: 1.7;
 }
 
-.contact-form {
-  background: white;
-  padding: 30px;
+.contact-info-panel {
+  padding: clamp(28px, 4vw, 48px);
   border-radius: 24px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.09);
+  background: radial-gradient(circle at 90% 8%, rgba(150, 191, 102, .22), transparent 34%), linear-gradient(145deg, #174b29, #0d301a);
+  color: #fff;
+  overflow: hidden;
 }
 
+.contact-info-panel .eyebrow.green { color: #d9efa8; border-color: rgba(217,239,168,.25); background: rgba(217,239,168,.08); }
+.contact-info-panel h2 { max-width: 560px; margin: 0 0 14px; color: #fff; font-size: clamp(30px, 3vw, 44px); line-height: 1.15; }
+.contact-lead { max-width: 590px; margin: 0 0 28px; color: rgba(239,248,235,.78); font-size: 15px; }
+
+.contact-direct-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px; }
+.contact-direct-card {
+  min-width: 0; display:grid; grid-template-columns:42px minmax(0,1fr) auto; align-items:center; gap:11px;
+  padding:14px; border:1px solid rgba(255,255,255,.12); border-radius:15px; background:rgba(255,255,255,.065);
+  color:#fff; text-decoration:none; transition:transform .2s,background .2s,border-color .2s;
+}
+.contact-direct-card:not(.is-static):hover { transform:translateY(-2px); background:rgba(255,255,255,.11); border-color:rgba(217,239,168,.3); }
+.contact-direct-icon { width:42px; height:42px; display:grid; place-items:center; border-radius:12px; background:rgba(217,239,168,.12); font-size:18px; }
+.contact-direct-card small,.contact-direct-card strong { display:block; overflow-wrap:anywhere; }
+.contact-direct-card small { margin-bottom:3px; color:rgba(235,246,231,.6); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+.contact-direct-card strong { color:#fff; font-size:13px; }
+.contact-direct-card>b { color:#d9efa8; font-size:17px; }
+
+.contact-availability { margin:22px 0 18px; color:rgba(240,248,236,.72); font-size:12px; line-height:1.6; }
+.contact-availability>span { display:inline-block; width:8px; height:8px; margin-right:7px; border-radius:50%; background:#73dc82; box-shadow:0 0 0 5px rgba(115,220,130,.12); }
+.contact-availability strong { color:#dff2bb; }
+.contact-map { position:relative; overflow:hidden; border:1px solid rgba(255,255,255,.14); border-radius:17px; background:#173d24; }
+.contact-map>span { position:absolute; left:12px; bottom:12px; padding:7px 10px; border-radius:9px; background:rgba(10,39,20,.86); color:#fff; font-size:11px; font-weight:750; backdrop-filter:blur(5px); }
+
+.contact-form {
+  align-self: stretch;
+  background: #fff;
+  padding: clamp(28px, 3.5vw, 44px);
+  border-radius: 24px;
+  box-shadow: 0 10px 32px rgba(21, 61, 30, .07);
+}
+
+.contact-form-head>span { display:inline-block; margin-bottom:10px; color:#8b6a1f; font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:.12em; }
+.contact-form-head h3 { margin:0 0 8px; color:#174421; font-size:28px; }
+.contact-form-head p { margin:0 0 25px; color:#708073; font-size:13px; }
+.contact-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 13px; }
+.contact-field { display:block; min-width:0; }
+.contact-field-full { grid-column:1/-1; }
+.contact-field>span { display:block; margin-bottom:7px; color:#344b38; font-size:12px; font-weight:800; }
+.contact-field>span b { color:#d35442; }
+.contact-field>small { display:block; margin-top:5px; color:#96a097; font-size:10px; text-align:right; }
+
 .contact-form input,
+.contact-form select,
 .contact-form textarea,
 .checkout-form input,
 .checkout-form textarea,
@@ -1196,7 +1244,11 @@ select {
   background: white;
 }
 
+.contact-form input,.contact-form select,.contact-form textarea { margin:0; padding:13px 14px; border-color:#dce4d9; border-radius:11px; color:#26372a; font:inherit; font-size:13px; }
+.contact-form select { appearance:auto; }
+
 .contact-form input:focus,
+.contact-form select:focus,
 .contact-form textarea:focus,
 .checkout-form input:focus,
 .checkout-form textarea:focus,
@@ -1205,11 +1257,23 @@ select {
   box-shadow: 0 0 0 3px rgba(31, 122, 54, 0.1);
 }
 
+.contact-form textarea { min-height:128px; }
+.contact-privacy { margin:16px 0 12px; color:#849087; font-size:11px; }
+.contact-status { margin:0 0 12px; padding:11px 13px; border-radius:10px; font-size:12px; font-weight:700; }
+.contact-status.success { background:#edf8eb; color:#216a34; border:1px solid #cce7c8; }
+.contact-status.error { background:#fff2f0; color:#a43c30; border:1px solid #f2d0cb; }
+.contact-form>button { width:100%; display:flex; align-items:center; justify-content:center; gap:10px; padding:14px 20px; border:0; border-radius:12px; background:linear-gradient(135deg,#257f3e,#155c2b); color:#fff; font-size:14px; font-weight:900; cursor:pointer; box-shadow:0 10px 24px rgba(23,100,45,.2); }
+.contact-form>button:hover { background:linear-gradient(135deg,#1f7137,#104b23); }
+.contact-form>button:disabled { opacity:.65; cursor:wait; }
+.contact-form>button span { font-size:18px; }
+
 .contact-form textarea,
 .checkout-form textarea {
   min-height: 105px;
   resize: vertical;
 }
+
+.contact-form textarea { min-height:128px; }
 
 /* ===== FOOTER ===== */
 
@@ -1679,6 +1743,7 @@ select {
   #home, #about, #products, #gift, #news, #guide, #contact { scroll-margin-top: 194px; }
   .product-grid, .guide-grid, .news-grid { grid-template-columns: repeat(2, 1fr); }
   .gift-section, .about-card, .contact-section, .detail-grid { grid-template-columns: 1fr; }
+  .contact-section { margin:50px 20px; padding:12px; }
   .gift-card { grid-template-columns: 180px 1fr; }
   .gift-intro { position: static; max-width: 680px; }
   .about-two-col { grid-template-columns: 1fr; gap: 2rem; }
@@ -1703,6 +1768,11 @@ select {
   .hero-actions .btn { text-align: center; }
   .category-section, .products-section, .about-section, .about-story-section, .news-section,
   .guide-section, .contact-section, .gift-section { padding: 50px 22px; }
+  .contact-section { margin:36px 12px; padding:9px; border-radius:24px; }
+  .contact-info-panel,.contact-form { padding:25px 20px; border-radius:19px; }
+  .contact-direct-grid,.contact-form-grid { grid-template-columns:1fr; }
+  .contact-field-full { grid-column:auto; }
+  .contact-info-panel h2 { font-size:30px; }
   .product-grid, .guide-grid, .news-grid, .about-features { grid-template-columns: 1fr; }
   .category-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .category-tabs button { min-height: 58px; padding: 11px 12px 11px 43px; font-size: 13px; }
