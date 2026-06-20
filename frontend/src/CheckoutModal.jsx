@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
+const SHOP_PHONE = "0395934551";
+
 const STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap');
 
@@ -493,8 +495,8 @@ function MoMoBox({ amount }) {
       </div>
       <div className="co-momo-body">
         <div className="co-momo-row">
-          <div><div className="co-momo-row-label">Số điện thoại</div><div className="co-momo-row-value">0900 000 000</div></div>
-          <button className="co-momo-copy" type="button" onClick={()=>navigator.clipboard.writeText("0900000000").catch(()=>{})}>Sao chép</button>
+          <div><div className="co-momo-row-label">Số điện thoại</div><div className="co-momo-row-value">{SHOP_PHONE}</div></div>
+          <button className="co-momo-copy" type="button" onClick={()=>navigator.clipboard.writeText(SHOP_PHONE).catch(()=>{})}>Sao chép</button>
         </div>
         <div className="co-momo-row">
           <div><div className="co-momo-row-label">Tên tài khoản</div><div className="co-momo-row-value" style={{fontSize:13,color:"#333",fontWeight:700}}>NGUYEN HONG TRUONG</div></div>

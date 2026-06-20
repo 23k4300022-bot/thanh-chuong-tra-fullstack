@@ -232,6 +232,8 @@ const EMAIL_FROM_ADDRESS = process.env.EMAIL_FROM_ADDRESS || "";
 const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || "Thanh Chương Trà";
 const MAIL_USER = process.env.MAIL_USER || "";
 const MAIL_PASS = process.env.MAIL_PASS || "";
+const SHOP_CONTACT_PHONE = "0395934551";
+const SHOP_CONTACT_EMAIL = "tranthixuan01012005@gmail.com";
 
 const smtpTransporter = HAS_SMTP_EMAIL
   ? nodemailer.createTransport({
@@ -344,8 +346,8 @@ async function sendOrderSuccessEmail(orderInfo) {
           <p style="margin-top: 26px; line-height: 1.7; color: #333;">
             Trân trọng,<br />
             <strong>Thanh Chương Trà</strong><br />
-            Hotline: 0900 000 000<br />
-            Email: ${process.env.SHOP_EMAIL || EMAIL_FROM_ADDRESS || "thanhchuongtra@gmail.com"}
+            Hotline: ${SHOP_CONTACT_PHONE}<br />
+            Email: ${SHOP_CONTACT_EMAIL}
           </p>
         </div>
       </div>
@@ -362,9 +364,7 @@ async function sendOrderSuccessEmail(orderInfo) {
     htmlContent: html,
   };
 
-  if (process.env.SHOP_EMAIL) {
-    payload.cc = [{ email: process.env.SHOP_EMAIL, name: EMAIL_FROM_NAME }];
-  }
+  payload.cc = [{ email: SHOP_CONTACT_EMAIL, name: EMAIL_FROM_NAME }];
 
   if (HAS_BREVO_EMAIL) {
     const response = await fetch(BREVO_API_URL, {
@@ -395,7 +395,7 @@ async function sendOrderSuccessEmail(orderInfo) {
       address: MAIL_USER,
     },
     to: customer_email,
-    cc: process.env.SHOP_EMAIL || undefined,
+    cc: SHOP_CONTACT_EMAIL,
     subject: payload.subject,
     html,
   });

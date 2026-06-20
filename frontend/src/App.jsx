@@ -11,6 +11,8 @@ const API_URL = import.meta.env.VITE_API_URL || (
     : "https://thanh-chuong-tra-fullstack.onrender.com"
 );
 const CHECKOUT_PROFILES_KEY = "thanh_chuong_checkout_profiles";
+const SHOP_PHONE = "0395934551";
+const SHOP_EMAIL = "tranthixuan01012005@gmail.com";
 
 function getCheckoutProfile(email) {
   if (!email) return null;
@@ -148,7 +150,7 @@ function PolicyModal({ type, onClose }) {
       content: [
         { heading: "Điều kiện đổi trả", body: "Sản phẩm được đổi trả trong vòng 7 ngày kể từ ngày nhận hàng nếu sản phẩm bị lỗi, hư hỏng do vận chuyển hoặc không đúng với mô tả." },
         { heading: "Sản phẩm không được đổi trả", body: "Sản phẩm đã mở seal, đã sử dụng quá 1/3 khối lượng, hoặc không còn bao bì nguyên vẹn sẽ không được đổi trả." },
-        { heading: "Quy trình đổi trả", body: "Liên hệ hotline 0900 000 000 hoặc email thanhchuongtra@gmail.com, cung cấp mã đơn hàng và hình ảnh sản phẩm. Shop sẽ phản hồi trong 24h." },
+        { heading: "Quy trình đổi trả", body: `Liên hệ hotline ${SHOP_PHONE} hoặc email ${SHOP_EMAIL}, cung cấp mã đơn hàng và hình ảnh sản phẩm. Shop sẽ phản hồi trong 24h.` },
         { heading: "Hoàn tiền", body: "Hoàn tiền 100% qua chuyển khoản trong 3–5 ngày làm việc sau khi xác nhận đổi trả hợp lệ." },
       ]
     },
@@ -1123,8 +1125,8 @@ function Storefront() {
             <h2>Đặt mua Thanh Chương Trà</h2>
             <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28, marginTop: 20 }}>
               {[
-                { icon: "📞", label: "Hotline", value: "0900 000 000" },
-                { icon: "✉️", label: "Email", value: "thanhchuongtra@gmail.com" },
+                { icon: "📞", label: "Hotline", value: SHOP_PHONE },
+                { icon: "✉️", label: "Email", value: SHOP_EMAIL },
                 { icon: "📍", label: "Địa chỉ", value: "Thanh Chương, Nghệ An" },
                 { icon: "🕐", label: "Giờ làm việc", value: "7:00 – 21:00 hàng ngày" },
               ].map(item => (
@@ -1162,7 +1164,7 @@ function Storefront() {
             <h3 style={{ color: "#fff", marginBottom: 8, fontSize: 20 }}>Thanh Chương Trà</h3>
             <p style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.75 }}>Hương xanh xứ Nghệ trong từng chén trà. Tinh chọn từ vùng chè Thanh Chương, Nghệ An.</p>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              {[{ label: "Facebook", url: "https://www.facebook.com/share/18adUuHPZp/?mibextid=wwXIfr" }, { label: "Zalo", url: "https://zalo.me/0985605049" }, { label: "TikTok", url: "https://www.tiktok.com/@hthtyuyu" }].map(sn => (
+              {[{ label: "Facebook", url: "https://www.facebook.com/share/18adUuHPZp/?mibextid=wwXIfr" }, { label: "Zalo", url: `https://zalo.me/${SHOP_PHONE}` }, { label: "TikTok", url: "https://www.tiktok.com/@hthtyuyu" }].map(sn => (
                 <a key={sn.label} href={sn.url} target="_blank" rel="noopener noreferrer" style={{ background: "rgba(255,255,255,0.1)", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", color: "#c8e6c9", textDecoration: "none" }}>{sn.label}</a>
               ))}
             </div>
@@ -1186,8 +1188,8 @@ function Storefront() {
           <div className="footer-column">
             <h4 style={{ color: "#fff", marginBottom: 16, fontSize: 14, textTransform: "uppercase", letterSpacing: 1 }}>Liên hệ</h4>
             <div className="footer-contact-list" style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13, opacity: 0.8 }}>
-              <span className="footer-contact-item"><span>📞</span><span>0395034551</span></span>
-              <span className="footer-contact-item"><span>✉️</span><span>thanhchuongtra@gmail.com</span></span>
+              <span className="footer-contact-item"><span>📞</span><span>{SHOP_PHONE}</span></span>
+              <span className="footer-contact-item"><span>✉️</span><span>{SHOP_EMAIL}</span></span>
               <span className="footer-contact-item"><span>📍</span><span>Thanh Chương, Nghệ An</span></span>
               <span className="footer-contact-item"><span>🕐</span><span>7:00 – 21:00 hàng ngày</span></span>
             </div>
