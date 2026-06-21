@@ -59,14 +59,15 @@ async function ensureNewsTable() {
   `);
   await poolPromise.query(`CREATE INDEX IF NOT EXISTS news_comments_article_idx ON news_comments(news_id,status,created_at DESC)`);
   const seedArticles = [
-    ["Cách pha trà xanh không bị đắng", "cach-pha-tra-xanh-khong-bi-dang", "Những nguyên tắc đơn giản về lượng trà, nhiệt độ nước và thời gian hãm giúp chén trà xanh thơm dịu, hậu ngọt.", "Một chén trà ngon bắt đầu từ nước sạch và ấm trà đã được làm nóng. Với ấm 150–200ml, bạn nên dùng khoảng 5–8g trà.\n\nNước pha phù hợp ở khoảng 80–90°C. Nước quá sôi dễ làm vị trà gắt và mất đi hương thơm tự nhiên. Hãm trà từ 20–30 giây cho lần đầu, sau đó tăng nhẹ thời gian ở những lần pha tiếp theo.\n\nKhi rót, hãy rót đều ra các chén để màu nước và hương vị đồng nhất. Thưởng thức khi trà còn ấm để cảm nhận rõ hậu vị ngọt thanh.", "https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=1200&q=85", "Cách pha trà", true],
-    ["Trà Thanh Chương có gì đặc biệt?", "tra-thanh-chuong-co-gi-dac-biet", "Khám phá vùng chè xứ Nghệ và nét mộc mạc tạo nên hương vị riêng của trà Thanh Chương.", "Thanh Chương, Nghệ An có khí hậu và thổ nhưỡng phù hợp cho cây chè phát triển. Những đồi chè xanh bên sông và bàn tay chăm sóc của người dân địa phương tạo nên nguồn nguyên liệu mang hương vị mộc mạc đặc trưng.\n\nTrà Thanh Chương thường có màu nước xanh vàng, hương thơm tự nhiên, vị chát dịu và hậu ngọt. Đây là thức uống gần gũi trong đời sống hằng ngày và cũng là món quà mang đậm dấu ấn quê hương xứ Nghệ.", "https://images.unsplash.com/photo-1563911892437-1feda0179e1b?auto=format&fit=crop&w=1200&q=85", "Câu chuyện thương hiệu", true],
-    ["Bảo quản trà thế nào để giữ hương lâu?", "bao-quan-tra-de-giu-huong-lau", "Hướng dẫn bảo quản trà tránh ánh sáng, độ ẩm và mùi mạnh để giữ trọn hương vị.", "Trà khô rất dễ hút ẩm và hấp thụ mùi từ môi trường xung quanh. Sau khi mở gói, hãy cho trà vào hộp kín, sạch và khô.\n\nNên đặt hộp trà ở nơi thoáng mát, tránh ánh nắng trực tiếp và không để cạnh cà phê, gia vị hoặc thực phẩm có mùi mạnh. Mỗi lần lấy trà, hãy dùng thìa khô và đóng nắp ngay sau khi sử dụng.\n\nĐể có hương vị tốt nhất, nên dùng trà trong khoảng sáu tháng sau khi mở.", "https://images.unsplash.com/photo-1594631252845-29fc4cc8cde9?auto=format&fit=crop&w=1200&q=85", "Kiến thức về trà", false]
+    ["Cách pha trà xanh không bị đắng", "cach-pha-tra-xanh-khong-bi-dang", "Những nguyên tắc đơn giản về lượng trà, nhiệt độ nước và thời gian hãm giúp chén trà xanh thơm dịu, hậu ngọt.", "Một chén trà ngon bắt đầu từ nước sạch và ấm trà đã được làm nóng. Với ấm 150–200ml, bạn nên dùng khoảng 5–8g trà.\n\nNước pha phù hợp ở khoảng 80–90°C. Nước quá sôi dễ làm vị trà gắt và mất đi hương thơm tự nhiên. Hãm trà từ 20–30 giây cho lần đầu, sau đó tăng nhẹ thời gian ở những lần pha tiếp theo.\n\nKhi rót, hãy rót đều ra các chén để màu nước và hương vị đồng nhất. Thưởng thức khi trà còn ấm để cảm nhận rõ hậu vị ngọt thanh.", "/images/articles/pha-tra-khong-dang.jpg", "Cách pha trà", true],
+    ["Trà Thanh Chương có gì đặc biệt?", "tra-thanh-chuong-co-gi-dac-biet", "Khám phá vùng chè xứ Nghệ và nét mộc mạc tạo nên hương vị riêng của trà Thanh Chương.", "Thanh Chương, Nghệ An có khí hậu và thổ nhưỡng phù hợp cho cây chè phát triển. Những đồi chè xanh bên sông và bàn tay chăm sóc của người dân địa phương tạo nên nguồn nguyên liệu mang hương vị mộc mạc đặc trưng.\n\nTrà Thanh Chương thường có màu nước xanh vàng, hương thơm tự nhiên, vị chát dịu và hậu ngọt. Đây là thức uống gần gũi trong đời sống hằng ngày và cũng là món quà mang đậm dấu ấn quê hương xứ Nghệ.", "/images/articles/doi-che-thanh-chuong.jpg", "Câu chuyện thương hiệu", true],
+    ["Bảo quản trà thế nào để giữ hương lâu?", "bao-quan-tra-de-giu-huong-lau", "Hướng dẫn bảo quản trà tránh ánh sáng, độ ẩm và mùi mạnh để giữ trọn hương vị.", "Trà khô rất dễ hút ẩm và hấp thụ mùi từ môi trường xung quanh. Sau khi mở gói, hãy cho trà vào hộp kín, sạch và khô.\n\nNên đặt hộp trà ở nơi thoáng mát, tránh ánh nắng trực tiếp và không để cạnh cà phê, gia vị hoặc thực phẩm có mùi mạnh. Mỗi lần lấy trà, hãy dùng thìa khô và đóng nắp ngay sau khi sử dụng.\n\nĐể có hương vị tốt nhất, nên dùng trà trong khoảng sáu tháng sau khi mở.", "/images/articles/bao-quan-tra.jpg", "Kiến thức về trà", false]
   ];
   for (const article of seedArticles) {
     await poolPromise.query(
       `INSERT INTO news (title,slug,summary,content,image_url,category,status,is_featured,published_at)
-       VALUES ($1,$2,$3,$4,$5,$6,'published',$7,NOW()) ON CONFLICT (slug) DO NOTHING`, article
+       VALUES ($1,$2,$3,$4,$5,$6,'published',$7,NOW())
+       ON CONFLICT (slug) DO UPDATE SET image_url=EXCLUDED.image_url`, article
     );
   }
 }
@@ -124,7 +125,7 @@ async function ensureCompanionProducts() {
       weight: "Hộp 180g",
       origin: "Việt Nam",
       flavor: "Bùi nhẹ, ngọt thanh",
-      imageUrl: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=900&q=85",
+      imageUrl: "/images/companions/banh-dau-xanh-thanh-chuong.jpg",
       stock: 40,
     },
     {
@@ -134,7 +135,7 @@ async function ensureCompanionProducts() {
       weight: "Hũ 200g",
       origin: "Việt Nam",
       flavor: "Giòn bùi, nguyên vị",
-      imageUrl: "https://images.unsplash.com/photo-1563292769-4e05b684851a?auto=format&fit=crop&w=900&q=85",
+      imageUrl: "/images/companions/hat-dieu-thanh-chuong.jpg",
       stock: 35,
     },
     {
@@ -144,7 +145,7 @@ async function ensureCompanionProducts() {
       weight: "Hộp 6 thanh",
       origin: "Việt Nam",
       flavor: "Thơm hạt, ngọt vừa",
-      imageUrl: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=900&q=85",
+      imageUrl: "/images/companions/thanh-ngu-coc-thanh-chuong.jpg",
       stock: 30,
     },
     {
@@ -154,7 +155,7 @@ async function ensureCompanionProducts() {
       weight: "Túi 150g",
       origin: "Nghệ An, Việt Nam",
       flavor: "Thơm ấm, ngọt dịu",
-      imageUrl: "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=900&q=85",
+      imageUrl: "/images/companions/mut-gung-thanh-chuong.jpg",
       stock: 30,
     },
   ];
@@ -167,6 +168,7 @@ async function ensureCompanionProducts() {
        WHERE NOT EXISTS (SELECT 1 FROM products WHERE LOWER(name)=LOWER($1))`,
       [product.name, product.description, product.price, product.weight, product.origin, product.flavor, product.imageUrl, product.stock]
     );
+    await poolPromise.query(`UPDATE products SET image_url=$2 WHERE LOWER(name)=LOWER($1)`, [product.name, product.imageUrl]);
   }
 }
 
