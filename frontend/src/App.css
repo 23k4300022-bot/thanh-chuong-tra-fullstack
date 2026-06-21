@@ -2,23 +2,36 @@
   box-sizing: border-box;
 }
 
+:root {
+  --font-sans: "Be Vietnam Pro", "Segoe UI", Arial, sans-serif;
+  --text-main: #27352a;
+  --text-muted: #667268;
+  --heading: #153f22;
+}
+
 html {
   scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
-  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
   background: #fffdf6;
-  color: #1f2d20;
+  color: var(--text-main);
+  font-size: 15px;
+  line-height: 1.65;
 }
 
 button,
 input,
 textarea,
 select {
-  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
+
+h1, h2, h3, h4, p { overflow-wrap: break-word; }
+h1, h2, h3, h4 { font-family: var(--font-sans); line-height: 1.22; text-wrap: balance; }
+p { text-wrap: pretty; }
 
 /* ===== HEADER ===== */
 
@@ -477,8 +490,8 @@ select {
 /* ===== SECTIONS ===== */
 
 .section-heading {
-  max-width: 780px;
-  margin: 0 auto 34px;
+  max-width: 800px;
+  margin: 0 auto 38px;
   text-align: center;
 }
 
@@ -486,13 +499,18 @@ select {
 .about-card h2,
 .contact-section h2 {
   margin: 0 0 14px;
-  font-size: 38px;
+  font-size: clamp(30px, 3.1vw, 42px);
+  line-height: 1.2;
+  font-weight: 700;
   color: #174421;
   letter-spacing: -0.5px;
 }
 
 .section-heading p {
-  line-height: 1.7;
+  max-width: 760px;
+  margin: 0 auto;
+  font-size: 15px;
+  line-height: 1.75;
   color: #667066;
 }
 
@@ -839,18 +857,24 @@ select {
 }
 
 .product-body h3 {
-  margin: 0 0 8px;
+  margin: 0 0 9px;
   color: #174421;
-  font-size: 15px;
-  line-height: 1.4;
-  text-align: center;
+  font-size: 17px;
+  line-height: 1.42;
+  font-weight: 700;
+  text-align: left;
 }
 
 .product-body p {
+  margin: 0 0 16px;
   color: #5d665d;
   font-size: 13px;
-  line-height: 1.6;
-  text-align: center;
+  line-height: 1.7;
+  text-align: left;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .product-meta {
@@ -859,7 +883,8 @@ select {
   flex-direction: column;
   gap: 5px;
   color: #667066;
-  font-size: 14px;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .product-footer {
@@ -928,7 +953,8 @@ select {
 }
 
 .gift-intro h2 {
-  font-size: 38px;
+  font-size: clamp(30px, 3vw, 40px);
+  line-height: 1.25;
   margin: 0 0 16px;
   color: #ffffff;
   text-shadow: 0 2px 8px rgba(0,0,0,0.3);
@@ -1018,11 +1044,15 @@ select {
 .gift-card h3 {
   margin: 0 0 10px;
   color: #ffffff;
-  font-size: 17px;
+  font-size: 18px;
+  line-height: 1.4;
+  font-weight: 700;
 }
 
 .gift-card p {
-  line-height: 1.6;
+  margin: 0 0 14px;
+  line-height: 1.7;
+  font-size: 13px;
   color: #d4f0d8;
 }
 
@@ -1101,7 +1131,7 @@ select {
 .news-meta { display:flex; align-items:center; justify-content:space-between; gap:10px; color:#8b947f; font-size:11px; }
 .news-meta span { color:#1f7a36; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
 .news-card h3 { margin:10px 0 9px; line-height:1.35; }
-.news-card h3 button { padding:0; border:0; background:none; color:#174421; font:inherit; font-size:18px; font-weight:850; text-align:left; cursor:pointer; }
+.news-card h3 button { padding:0; border:0; background:none; color:#174421; font:inherit; font-size:18px; line-height:1.45; font-weight:700; text-align:left; cursor:pointer; }
 .news-card-body>p { margin:0; min-height:84px; color:#667066; font-size:13px; line-height:1.65; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
 .news-read-more { margin-top:16px; padding:0; border:0; background:none; color:#1f7a36; font-size:12px; font-weight:900; cursor:pointer; }
 .news-read-more span { margin-left:4px; transition:margin .2s; }.news-read-more:hover span { margin-left:8px; }
@@ -1581,7 +1611,7 @@ select {
   right: 22px;
   bottom: 22px;
   z-index: 9999;
-  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
 
 .chatbot-toggle {

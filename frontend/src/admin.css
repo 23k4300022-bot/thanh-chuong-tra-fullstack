@@ -1,5 +1,13 @@
 :root {
-  font-family: 'Segoe UI', Arial, sans-serif;
+  font-family: "Be Vietnam Pro", "Segoe UI", Arial, sans-serif;
+}
+
+.admin-page,
+.admin-login-page,
+.admin-news-editor {
+  font-family: "Be Vietnam Pro", "Segoe UI", Arial, sans-serif;
+  color: #293529;
+  line-height: 1.55;
 }
 
 .admin-page,

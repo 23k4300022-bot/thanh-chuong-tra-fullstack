@@ -1381,7 +1381,7 @@ function Storefront() {
           right: dragPos.right,
           bottom: dragPos.bottom,
           zIndex: 9999,
-          fontFamily: '"Segoe UI", Arial, Helvetica, sans-serif',
+          fontFamily: '"Be Vietnam Pro", "Segoe UI", Arial, sans-serif',
           userSelect: "none",
         }}
       >
@@ -1528,7 +1528,7 @@ function ReviewPage() {
     }
   };
 
-  return <main style={{ minHeight: "100vh", background: "#f5f1e7", padding: "48px 18px", fontFamily: "Arial, sans-serif" }}>
+  return <main style={{ minHeight: "100vh", background: "#f5f1e7", padding: "48px 18px", fontFamily: '"Be Vietnam Pro", "Segoe UI", Arial, sans-serif' }}>
     <section style={{ maxWidth: 620, margin: "auto", background: "#fff", border: "1px solid #dfe8da", borderRadius: 20, padding: 30, boxShadow: "0 16px 44px rgba(23,68,33,.1)" }}>
       <a href="/" style={{ color: "#1f7a36", textDecoration: "none", fontWeight: 700 }}>← Thanh Chương Trà</a>
       <h1 style={{ color: "#174421", marginBottom: 8 }}>Đánh giá sản phẩm & dịch vụ</h1>
