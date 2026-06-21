@@ -13,6 +13,8 @@ const API_URL = import.meta.env.VITE_API_URL || (
 const CHECKOUT_PROFILES_KEY = "thanh_chuong_checkout_profiles";
 const SHOP_PHONE = "0395934551";
 const SHOP_EMAIL = "tranthixuan01012005@gmail.com";
+const normalizeCatalogText = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("vi");
+const isCompanionProduct = product => normalizeCatalogText(product?.category).includes("do an kem tra");
 
 function getCheckoutProfile(email) {
   if (!email) return null;
@@ -390,6 +392,21 @@ function Storefront() {
 
   const giftProducts = useMemo(() => products.filter(item => String(item.category || "").toLowerCase().includes("hộp quà")), [products]);
 
+  const companionProducts = useMemo(
+    () => products.filter(isCompanionProduct),
+    [products]
+  );
+
+  const teaProducts = useMemo(
+    () => products.filter(item => !isCompanionProduct(item) && !normalizeText(item.category).includes("hop qua")),
+    [products]
+  );
+
+  const teaPairings = useMemo(() => companionProducts.slice(0, 4).map((companion, index) => ({
+    companion,
+    tea: teaProducts[index % Math.max(teaProducts.length, 1)] || null,
+  })), [companionProducts, teaProducts]);
+
   const formatPrice = price => Number(price || 0).toLocaleString("vi-VN") + "đ";
 
   const calcSalePrice = (price, discountPercent, discountAmount) => {
@@ -433,35 +450,45 @@ function Storefront() {
 
   const logout = () => { localStorage.removeItem("thanh_chuong_user"); setCurrentUser(null); alert("Đã đăng xuất"); };
 
-  // ✅ addToCart: lưu finalPrice vào cart, giữ originalPrice để hiển thị gạch ngang
-  const addToCart = product => {
-    const discPct = Number(product.discount_percent || 0);
-    const discAmt = Number(product.discount_amount || 0);
-    const finalPrice = calcSalePrice(product.price, discPct, discAmt);
-    const stock = Number(product.stock ?? 999);
+  const addProductsToCart = (productsToAdd, successMessage = "") => {
+    const validProducts = productsToAdd.filter(Boolean);
+    let errorMessage = "";
+    let addedCount = 0;
 
-    const existing = cart.find(item => item.id === product.id);
-    if (stock <= 0) {
-      alert(`${product.name} hiện đã hết hàng.`);
-      return;
-    }
-    if (existing && existing.quantity >= stock) {
-      alert(`${product.name} chỉ còn ${stock} sản phẩm trong kho.`);
-      return;
-    }
-    if (existing) {
-      setCart(cart.map(item =>
-        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-      ));
-    } else {
-      setCart([...cart, {
-        ...product,
-        price: finalPrice,             // giá đã giảm — dùng để tính tiền
-        originalPrice: product.price,  // giá gốc — dùng để hiển thị gạch ngang
-        quantity: 1,
-      }]);
-    }
+    setCart(currentCart => {
+      const nextCart = [...currentCart];
+      for (const product of validProducts) {
+        const stock = Number(product.stock ?? 999);
+        const index = nextCart.findIndex(item => item.id === product.id);
+        const currentQuantity = index >= 0 ? nextCart[index].quantity : 0;
+        if (stock <= 0 || currentQuantity >= stock) {
+          errorMessage ||= stock <= 0
+            ? `${product.name} hiện đã hết hàng.`
+            : `${product.name} chỉ còn ${stock} sản phẩm trong kho.`;
+          continue;
+        }
+        const finalPrice = calcSalePrice(product.price, product.discount_percent, product.discount_amount);
+        if (index >= 0) {
+          nextCart[index] = { ...nextCart[index], quantity: currentQuantity + 1 };
+        } else {
+          nextCart.push({ ...product, price: finalPrice, originalPrice: product.price, quantity: 1 });
+        }
+        addedCount += 1;
+      }
+      return nextCart;
+    });
+
+    setTimeout(() => {
+      if (errorMessage) alert(errorMessage);
+      else if (successMessage && addedCount > 0) alert(successMessage);
+    }, 0);
   };
+
+  const addToCart = product => addProductsToCart([product]);
+  const addPairingToCart = (tea, companion) => addProductsToCart(
+    [tea, companion],
+    `Đã thêm combo ${tea?.name || "trà"} và ${companion.name} vào giỏ hàng.`
+  );
 
   const increaseQty = id => {
     const item = cart.find(cartItem => cartItem.id === id);
@@ -946,6 +973,50 @@ function Storefront() {
           </div>
         </section>
 
+        {companionProducts.length > 0 && (
+          <section className="pairing-section" id="tea-pairings">
+            <div className="pairing-heading">
+              <div>
+                <p className="eyebrow green">Thưởng trà trọn vị</p>
+                <h2>Đồ ăn nhẹ dùng kèm trà</h2>
+                <p>Chọn một phần ăn nhẹ trước hoặc trong lúc thưởng trà, đặc biệt khi bạn chưa dùng bữa hoặc có cơ địa nhạy cảm.</p>
+              </div>
+              <div className="pairing-note" role="note">
+                <span>Gợi ý nhỏ</span>
+                <strong>Không nên uống trà quá đặc khi bụng đang đói.</strong>
+                <p>Đây là gợi ý thưởng thức, không thay thế tư vấn y tế.</p>
+              </div>
+            </div>
+
+            <div className="pairing-grid">
+              {teaPairings.map(({ companion, tea }) => {
+                const salePrice = calcSalePrice(companion.price, companion.discount_percent, companion.discount_amount);
+                const outOfStock = Number(companion.stock ?? 999) <= 0;
+                return (
+                  <article className="pairing-card" key={companion.id}>
+                    <button className="pairing-image" type="button" onClick={() => setSelectedProduct(companion)} aria-label={`Xem ${companion.name}`}>
+                      <img src={companion.image_url} alt={companion.name} />
+                      {Number(companion.discount_percent) > 0 && <span>Ưu đãi {Number(companion.discount_percent)}%</span>}
+                    </button>
+                    <div className="pairing-body">
+                      <div className="pairing-kicker">Dùng kèm: {tea?.name || "các dòng trà xanh"}</div>
+                      <h3>{companion.name}</h3>
+                      <p>{companion.description}</p>
+                      <div className="pairing-meta"><span>{companion.weight}</span><strong>{formatPrice(salePrice)}</strong></div>
+                      <div className="pairing-actions">
+                        <button type="button" className="pairing-secondary" onClick={() => setSelectedProduct(companion)}>Chi tiết</button>
+                        <button type="button" disabled={outOfStock} onClick={() => tea ? addPairingToCart(tea, companion) : addToCart(companion)}>
+                          {outOfStock ? "Hết hàng" : tea ? "Thêm cả combo" : "Thêm vào giỏ"}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* ===== GIFT SECTION ===== */}
         <section className="gift-section" id="gift">
           <div className="gift-intro">
@@ -1344,10 +1415,10 @@ function Storefront() {
                 <ul className="detail-list">
                   <li><strong>Khối lượng:</strong> {selectedProduct.weight}</li>
                   <li><strong>Xuất xứ:</strong> {selectedProduct.origin}</li>
-                  <li><strong>Loại trà:</strong> {selectedProduct.tea_type}</li>
+                  <li><strong>{isCompanionProduct(selectedProduct) ? "Loại sản phẩm:" : "Loại trà:"}</strong> {selectedProduct.tea_type}</li>
                   <li><strong>Hương vị:</strong> {selectedProduct.flavor}</li>
-                  <li><strong>Màu nước:</strong> {selectedProduct.water_color}</li>
-                  <li><strong>Cách pha:</strong> {selectedProduct.brewing_guide}</li>
+                  {!isCompanionProduct(selectedProduct) && <li><strong>Màu nước:</strong> {selectedProduct.water_color}</li>}
+                  <li><strong>{isCompanionProduct(selectedProduct) ? "Cách dùng:" : "Cách pha:"}</strong> {selectedProduct.brewing_guide}</li>
                   <li><strong>Bảo quản:</strong> {selectedProduct.storage_guide}</li>
                 </ul>
                 <button className="add-cart" onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }}>
@@ -1371,6 +1442,8 @@ function Storefront() {
           onSubmit={submitOrder}
           onVnpay={payWithVnpay}
           apiUrl={API_URL}
+          companionProducts={companionProducts}
+          onAddCompanion={addToCart}
         />
       )}
 

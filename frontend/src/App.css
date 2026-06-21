@@ -928,6 +928,226 @@ p { text-wrap: pretty; }
   font-size: 15px;
 }
 
+/* ===== TEA PAIRINGS ===== */
+
+.pairing-section {
+  padding: 84px 60px;
+  background:
+    radial-gradient(circle at 8% 10%, rgba(217, 187, 106, .18), transparent 28%),
+    linear-gradient(145deg, #f8f3e7 0%, #f2f8ed 100%);
+}
+
+.pairing-heading {
+  max-width: 1260px;
+  margin: 0 auto 34px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 390px);
+  align-items: end;
+  gap: 48px;
+}
+
+.pairing-heading h2 {
+  margin: 8px 0 12px;
+  color: #173f25;
+  font-size: clamp(30px, 3vw, 43px);
+  line-height: 1.18;
+  letter-spacing: -.035em;
+}
+
+.pairing-heading > div:first-child > p:last-child {
+  max-width: 720px;
+  margin: 0;
+  color: #59665b;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.pairing-note {
+  padding: 18px 20px;
+  border: 1px solid rgba(31, 122, 54, .18);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .72);
+  box-shadow: 0 14px 36px rgba(32, 70, 38, .07);
+}
+
+.pairing-note span {
+  display: block;
+  margin-bottom: 6px;
+  color: #a26712;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.pairing-note strong {
+  display: block;
+  color: #174421;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.pairing-note p {
+  margin: 6px 0 0;
+  color: #778078;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.pairing-grid {
+  max-width: 1260px;
+  margin: auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.pairing-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(41, 92, 48, .12);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 16px 38px rgba(35, 70, 38, .09);
+  transition: transform .22s ease, box-shadow .22s ease;
+}
+
+.pairing-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 22px 48px rgba(35, 70, 38, .14);
+}
+
+.pairing-image {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 205px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: #e9efe4;
+  cursor: pointer;
+}
+
+.pairing-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform .35s ease;
+}
+
+.pairing-card:hover .pairing-image img { transform: scale(1.05); }
+
+.pairing-image span {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #fff7dd;
+  color: #925b0c;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .1);
+}
+
+.pairing-body {
+  display: flex;
+  min-height: 275px;
+  flex-direction: column;
+  padding: 19px;
+}
+
+.pairing-kicker {
+  margin-bottom: 8px;
+  overflow: hidden;
+  color: #288044;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pairing-body h3 {
+  margin: 0 0 8px;
+  color: #173f25;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.pairing-body > p {
+  display: -webkit-box;
+  margin: 0 0 14px;
+  overflow: hidden;
+  color: #626b63;
+  font-size: 12px;
+  line-height: 1.65;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.pairing-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  color: #7b817b;
+  font-size: 11px;
+}
+
+.pairing-meta strong {
+  color: #b16800;
+  font-size: 17px;
+}
+
+.pairing-actions {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.pairing-actions button {
+  min-height: 42px;
+  padding: 9px 13px;
+  border: 0;
+  border-radius: 11px;
+  background: #1f7437;
+  color: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pairing-actions .pairing-secondary {
+  border: 1px solid #cddcc8;
+  background: #fff;
+  color: #286a39;
+}
+
+.pairing-actions button:hover:not(:disabled) { filter: brightness(.92); }
+.pairing-actions button:disabled { opacity: .5; cursor: not-allowed; }
+
+@media (max-width: 1040px) {
+  .pairing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .pairing-section { padding: 62px 20px; }
+  .pairing-heading { grid-template-columns: 1fr; gap: 22px; }
+  .pairing-heading h2 { font-size: 30px; }
+}
+
+@media (max-width: 520px) {
+  .pairing-grid { grid-template-columns: 1fr; }
+  .pairing-image { height: 220px; }
+  .pairing-body { min-height: 0; }
+}
+
 .add-cart:hover,
 .contact-form button:hover,
 .checkout-form button:hover {

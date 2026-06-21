@@ -115,6 +115,61 @@ async function ensureAftercareTables() {
   `);
 }
 
+async function ensureCompanionProducts() {
+  const companionProducts = [
+    {
+      name: "Bánh đậu xanh ít ngọt",
+      description: "Bánh mềm, vị bùi dịu và ít ngọt, phù hợp dùng lót dạ khi thưởng trà.",
+      price: 45000,
+      weight: "Hộp 180g",
+      origin: "Việt Nam",
+      flavor: "Bùi nhẹ, ngọt thanh",
+      imageUrl: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=900&q=85",
+      stock: 40,
+    },
+    {
+      name: "Hạt điều rang nguyên vị",
+      description: "Hạt điều giòn bùi, không tẩm vị đậm, tiện dùng cùng trà trong buổi sáng hoặc giữa giờ.",
+      price: 79000,
+      weight: "Hũ 200g",
+      origin: "Việt Nam",
+      flavor: "Giòn bùi, nguyên vị",
+      imageUrl: "https://images.unsplash.com/photo-1563292769-4e05b684851a?auto=format&fit=crop&w=900&q=85",
+      stock: 35,
+    },
+    {
+      name: "Thanh ngũ cốc hạt dinh dưỡng",
+      description: "Thanh ngũ cốc nhỏ gọn với các loại hạt, thích hợp cho một bữa ăn nhẹ trước khi uống trà.",
+      price: 65000,
+      weight: "Hộp 6 thanh",
+      origin: "Việt Nam",
+      flavor: "Thơm hạt, ngọt vừa",
+      imageUrl: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=900&q=85",
+      stock: 30,
+    },
+    {
+      name: "Mứt gừng lát mật ong",
+      description: "Gừng lát thơm ấm, vị ngọt dịu, dùng từng miếng nhỏ để cân bằng vị trà.",
+      price: 55000,
+      weight: "Túi 150g",
+      origin: "Nghệ An, Việt Nam",
+      flavor: "Thơm ấm, ngọt dịu",
+      imageUrl: "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=900&q=85",
+      stock: 30,
+    },
+  ];
+
+  for (const product of companionProducts) {
+    await poolPromise.query(
+      `INSERT INTO products
+        (name,description,price,weight,category,origin,flavor,image_url,tea_type,water_color,brewing_guide,storage_guide,discount_percent,discount_amount,stock,sold_count,is_hot)
+       SELECT $1,$2,$3,$4,'Đồ ăn kèm trà',$5,$6,$7,'Đồ ăn nhẹ','Không áp dụng','Mở gói và dùng trực tiếp cùng trà. Dùng lượng vừa phải.','Đậy kín sau khi mở, để nơi khô ráo và dùng theo hạn trên bao bì.',5,0,$8,0,FALSE
+       WHERE NOT EXISTS (SELECT 1 FROM products WHERE LOWER(name)=LOWER($1))`,
+      [product.name, product.description, product.price, product.weight, product.origin, product.flavor, product.imageUrl, product.stock]
+    );
+  }
+}
+
 /* ===================== GROQ AI CHATBOT CONFIG ===================== */
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
@@ -562,6 +617,37 @@ app.get("/api/products/:id", async (req, res) => {
   } catch (error) {
     console.error("Lỗi lấy chi tiết sản phẩm:", error);
     res.status(500).json({ message: "Lỗi chi tiết sản phẩm", error: error.message });
+  }
+});
+
+app.post("/api/products", async (req, res) => {
+  try {
+    const {
+      name, description, price, weight, category, origin, flavor, image_url,
+      tea_type, water_color, brewing_guide, storage_guide,
+      discount_percent = 0, discount_amount = 0, stock = 0,
+      sold_count = 0, is_hot = false,
+    } = req.body;
+    if (!String(name || "").trim() || !Number.isFinite(Number(price)) || Number(price) < 0) {
+      return res.status(400).json({ message: "Tên sản phẩm và giá bán hợp lệ là bắt buộc" });
+    }
+    const result = await poolPromise.query(
+      `INSERT INTO products
+        (name,description,price,weight,category,origin,flavor,image_url,tea_type,water_color,brewing_guide,storage_guide,discount_percent,discount_amount,stock,sold_count,is_hot)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+      [
+        String(name).trim(), String(description || "").trim(), Number(price), String(weight || "").trim(),
+        String(category || "Trà xanh").trim(), String(origin || "Thanh Chương, Nghệ An").trim(),
+        String(flavor || "").trim(), String(image_url || "").trim(), String(tea_type || "").trim(),
+        String(water_color || "").trim(), String(brewing_guide || "").trim(), String(storage_guide || "").trim(),
+        Math.max(0, Number(discount_percent || 0)), Math.max(0, Number(discount_amount || 0)),
+        Math.max(0, Number(stock || 0)), Math.max(0, Number(sold_count || 0)), Boolean(is_hot),
+      ]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("Lỗi tạo sản phẩm:", error);
+    res.status(500).json({ message: "Không tạo được sản phẩm", error: error.message });
   }
 });
 
@@ -1507,7 +1593,7 @@ app.post("/api/order-feedback/:token", async (req, res) => {
 /* ===================== START SERVER ===================== */
 
 const PORT = process.env.PORT || 5000;
-Promise.all([ensureNewsTable(), ensureDiscountTables(), ensureAftercareTables()])
+Promise.all([ensureNewsTable(), ensureDiscountTables(), ensureAftercareTables(), ensureCompanionProducts()])
   .then(() => app.listen(PORT, () => console.log(`Server đang chạy tại http://localhost:${PORT}`)))
   .catch((error) => {
     console.error("Không thể khởi tạo bảng tin tức:", error);

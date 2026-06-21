@@ -271,6 +271,14 @@ function getOrderStatusClass(status) {
 
 function ProductEditModal({ product, onClose, onSaved }) {
   const [form, setForm] = useState({
+    name:             product.name || "",
+    description:      product.description || "",
+    price:             Number(product.price || 0),
+    weight:            product.weight || "",
+    category:          product.category || "",
+    origin:            product.origin || "",
+    flavor:            product.flavor || "",
+    image_url:         product.image_url || "",
     discount_percent: Number(product.discount_percent || 0),
     discount_amount:  Number(product.discount_amount  || 0),
     stock:            Number(product.stock     ?? 999),
@@ -284,6 +292,10 @@ function ProductEditModal({ product, onClose, onSaved }) {
   const hasDiscount = form.discount_percent > 0 || form.discount_amount > 0;
 
   const handleSave = async () => {
+    if (!form.name.trim() || !Number.isFinite(Number(form.price)) || Number(form.price) < 0) {
+      setError("Tên sản phẩm và giá bán hợp lệ là bắt buộc.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -291,6 +303,14 @@ function ProductEditModal({ product, onClose, onSaved }) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          name:             form.name.trim(),
+          description:      form.description.trim(),
+          price:             Number(form.price),
+          weight:            form.weight.trim(),
+          category:          form.category.trim(),
+          origin:            form.origin.trim(),
+          flavor:            form.flavor.trim(),
+          image_url:         form.image_url.trim(),
           discount_percent: Number(form.discount_percent),
           discount_amount:  Number(form.discount_amount),
           stock:            Number(form.stock),
@@ -322,7 +342,7 @@ function ProductEditModal({ product, onClose, onSaved }) {
         onClick={(e) => e.stopPropagation()}
         style={{
           background: "#fff", borderRadius: 16, padding: 28,
-          width: "100%", maxWidth: 480, boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
+          width: "100%", maxWidth: 720, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
@@ -347,6 +367,17 @@ function ProductEditModal({ product, onClose, onSaved }) {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+          <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>
+            <span>Tên sản phẩm</span>
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={inputStyle} />
+          </label>
+          <label style={labelStyle}><span>Danh mục</span><input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} style={inputStyle} /></label>
+          <label style={labelStyle}><span>Giá gốc (đ)</span><input type="number" min="0" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} style={inputStyle} /></label>
+          <label style={labelStyle}><span>Khối lượng / quy cách</span><input value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} style={inputStyle} /></label>
+          <label style={labelStyle}><span>Xuất xứ</span><input value={form.origin} onChange={(e) => setForm({ ...form, origin: e.target.value })} style={inputStyle} /></label>
+          <label style={labelStyle}><span>Hương vị</span><input value={form.flavor} onChange={(e) => setForm({ ...form, flavor: e.target.value })} style={inputStyle} /></label>
+          <label style={{ ...labelStyle, gridColumn: "1 / -1" }}><span>Ảnh sản phẩm (URL)</span><input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} style={inputStyle} /></label>
+          <label style={{ ...labelStyle, gridColumn: "1 / -1" }}><span>Mô tả</span><textarea rows="3" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} style={{ ...inputStyle, resize: "vertical" }} /></label>
           <label style={labelStyle}>
             <span>Giảm giá (%)</span>
             <input
@@ -443,6 +474,55 @@ const inputStyle = {
   fontSize: 14, outline: "none",
 };
 
+const emptyProductForm = {
+  name: "", description: "", price: "", weight: "", category: "Đồ ăn kèm trà",
+  origin: "Việt Nam", flavor: "", image_url: "", tea_type: "Đồ ăn nhẹ",
+  water_color: "Không áp dụng", brewing_guide: "Mở gói và dùng trực tiếp cùng trà. Dùng lượng vừa phải.",
+  storage_guide: "Đậy kín sau khi mở, để nơi khô ráo và dùng theo hạn trên bao bì.",
+  discount_percent: 0, discount_amount: 0, stock: 20, sold_count: 0, is_hot: false,
+};
+
+function ProductCreateModal({ onClose, onSaved }) {
+  const [form, setForm] = useState(emptyProductForm);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const setField = (key, value) => setForm(current => ({ ...current, [key]: value }));
+  const save = async () => {
+    if (!form.name.trim() || !form.price || Number(form.price) < 0) {
+      setError("Vui lòng nhập tên và giá bán hợp lệ."); return;
+    }
+    setSaving(true); setError("");
+    try {
+      const res = await fetch(`${API_URL}/api/products`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Không tạo được sản phẩm");
+      onSaved(data); onClose();
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  };
+  return <div className="admin-news-modal" onClick={onClose}><div className="admin-news-editor" onClick={e => e.stopPropagation()}>
+    <div className="admin-news-editor-head"><h2>Thêm sản phẩm</h2><button onClick={onClose}>×</button></div>
+    <div className="admin-news-form-grid">
+      <label className="wide">Tên sản phẩm<input value={form.name} onChange={e => setField("name", e.target.value)} placeholder="Ví dụ: Bánh đậu xanh ít ngọt" /></label>
+      <label>Danh mục<input value={form.category} onChange={e => setField("category", e.target.value)} /></label>
+      <label>Giá bán (đ)<input type="number" min="0" value={form.price} onChange={e => setField("price", Number(e.target.value))} /></label>
+      <label>Quy cách / khối lượng<input value={form.weight} onChange={e => setField("weight", e.target.value)} placeholder="Hộp 180g" /></label>
+      <label>Tồn kho<input type="number" min="0" value={form.stock} onChange={e => setField("stock", Number(e.target.value))} /></label>
+      <label>Xuất xứ<input value={form.origin} onChange={e => setField("origin", e.target.value)} /></label>
+      <label>Hương vị<input value={form.flavor} onChange={e => setField("flavor", e.target.value)} /></label>
+      <label className="wide">Ảnh sản phẩm (URL)<input value={form.image_url} onChange={e => setField("image_url", e.target.value)} placeholder="https://..." /></label>
+      <label className="wide">Mô tả<textarea rows="3" value={form.description} onChange={e => setField("description", e.target.value)} /></label>
+      <label>Giảm giá (%)<input type="number" min="0" max="99" value={form.discount_percent} onChange={e => setForm({ ...form, discount_percent: Number(e.target.value), discount_amount: 0 })} /></label>
+      <label>Giảm trực tiếp (đ)<input type="number" min="0" value={form.discount_amount} onChange={e => setForm({ ...form, discount_amount: Number(e.target.value), discount_percent: 0 })} /></label>
+      <label className="wide">Cách dùng<input value={form.brewing_guide} onChange={e => setField("brewing_guide", e.target.value)} /></label>
+      <label className="wide">Bảo quản<input value={form.storage_guide} onChange={e => setField("storage_guide", e.target.value)} /></label>
+      <label className="admin-news-check wide"><input type="checkbox" checked={form.is_hot} onChange={e => setField("is_hot", e.target.checked)} /> Đánh dấu bán chạy</label>
+    </div>
+    {error && <div style={{ marginTop: 14, padding: "10px 12px", borderRadius: 9, background: "#fff1f0", color: "#b42318", fontSize: 12 }}>{error}</div>}
+    <div className="admin-news-editor-actions"><button type="button" onClick={onClose}>Hủy</button><button type="button" className="primary" disabled={saving} onClick={save}>{saving ? "Đang lưu..." : "Tạo sản phẩm"}</button></div>
+  </div></div>;
+}
+
 const emptyNewsForm={title:"",summary:"",content:"",image_url:"",category:"Kiến thức về trà",status:"draft",is_featured:false};
 
 function NewsEditModal({ article, onClose, onSaved }) {
@@ -536,6 +616,7 @@ function AdminPage() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [showProductCreator, setShowProductCreator] = useState(false);
   const [productFilter, setProductFilter] = useState("all"); // all | hot | discount | low_stock
   const [confirmingCodId, setConfirmingCodId] = useState(null);
 
@@ -922,6 +1003,7 @@ function AdminPage() {
                 <span>Theo dõi và tra cứu dữ liệu trực tiếp từ hệ thống</span>
               </div>
               <div style={{display:"flex",gap:8}}>
+                {activeTab==="products"&&<button type="button" onClick={()=>setShowProductCreator(true)}>＋ Thêm sản phẩm</button>}
                 {activeTab==="news"&&<button type="button" onClick={()=>{setEditingNews(null);setShowNewsEditor(true);}}>＋ Thêm bài viết</button>}
                 {activeTab==="discountCodes"&&<button type="button" onClick={()=>{setEditingDiscount(null);setShowDiscountEditor(true);}}>＋ Tạo mã</button>}
                 <button type="button" onClick={exportCurrentTable}>📥 Xuất CSV</button>
@@ -1227,6 +1309,12 @@ function AdminPage() {
           product={editingProduct}
           onClose={() => setEditingProduct(null)}
           onSaved={handleProductSaved}
+        />
+      )}
+      {showProductCreator && (
+        <ProductCreateModal
+          onClose={() => setShowProductCreator(false)}
+          onSaved={saved => setProducts(prev => [saved, ...prev])}
         />
       )}
       {showNewsEditor&&(

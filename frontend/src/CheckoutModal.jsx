@@ -115,6 +115,19 @@ const STYLES = `
 }
 .co-remove:hover { background:#c0392b; color:#fff; border-color:#c0392b; }
 
+.co-companion { margin:2px 0 18px; padding:14px; border:1px solid #dce9d7; border-radius:15px; background:linear-gradient(135deg,#f7fbf4,#fffaf0); }
+.co-companion-head { margin-bottom:10px; }
+.co-companion-head strong { display:block; color:#174421; font-size:12px; }
+.co-companion-head span { display:block; margin-top:3px; color:#7c847c; font-size:10px; line-height:1.5; }
+.co-companion-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.co-companion-item { display:grid; grid-template-columns:42px minmax(0,1fr) auto; align-items:center; gap:8px; padding:8px; border:1px solid #e6ebdf; border-radius:11px; background:#fff; }
+.co-companion-item img { width:42px; height:42px; border-radius:9px; object-fit:cover; background:#edf2e9; }
+.co-companion-info { min-width:0; }
+.co-companion-info strong { display:block; overflow:hidden; color:#2a372b; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.co-companion-info span { display:block; margin-top:3px; color:#b06c09; font-size:10px; font-weight:800; }
+.co-companion-add { width:27px; height:27px; padding:0; border:0; border-radius:8px; background:#e5f3df; color:#1f7437; font-size:17px; font-weight:900; cursor:pointer; }
+.co-companion-add:hover { background:#1f7437; color:#fff; }
+
 .co-total-box {
   background:#fffdf5; border:1px solid #ede0b0;
   border-radius:16px; padding:16px 18px; margin-bottom:22px; position:relative; overflow:hidden;
@@ -364,6 +377,7 @@ const STYLES = `
   .co-pay-grid { grid-template-columns:1fr; }
   .co-cart-item { grid-template-columns:1fr; gap:8px; }
   .co-address-grid { grid-template-columns:1fr; }
+  .co-companion-list { grid-template-columns:1fr; }
 }
 `;
 
@@ -671,6 +685,7 @@ export default function CheckoutModal({
   cart, onClose, onInc, onDec, onRemove,
   customer, setCustomer,
   onSubmit, onVnpay, apiUrl,
+  companionProducts = [], onAddCompanion,
 }) {
   const [successType, setSuccessType] = useState(null);
   const [ordNum, setOrdNum] = useState("");
@@ -893,6 +908,32 @@ export default function CheckoutModal({
                       </div>
                     ))}
                   </div>
+
+                  {companionProducts.some(item => !cart.some(cartItem => cartItem.id === item.id) && Number(item.stock ?? 999) > 0) && (
+                    <div className="co-companion">
+                      <div className="co-companion-head">
+                        <strong>Thêm một món nhẹ dùng kèm trà</strong>
+                        <span>Phù hợp khi bạn chưa dùng bữa hoặc muốn cân bằng vị trà.</span>
+                      </div>
+                      <div className="co-companion-list">
+                        {companionProducts
+                          .filter(item => !cart.some(cartItem => cartItem.id === item.id) && Number(item.stock ?? 999) > 0)
+                          .slice(0, 2)
+                          .map(item => {
+                            const discountedPrice = Number(item.discount_percent) > 0
+                              ? Math.round(Number(item.price) * (1 - Number(item.discount_percent) / 100))
+                              : Math.max(0, Number(item.price) - Number(item.discount_amount || 0));
+                            return (
+                              <div className="co-companion-item" key={item.id}>
+                                <img src={item.image_url} alt="" />
+                                <div className="co-companion-info"><strong>{item.name}</strong><span>{fmt(discountedPrice)}</span></div>
+                                <button className="co-companion-add" type="button" onClick={() => onAddCompanion?.(item)} aria-label={`Thêm ${item.name}`}>＋</button>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="co-total-box">
                     <div className="co-total-row"><span>Tạm tính</span><span>{fmt(subtotalAmount)}</span></div>
