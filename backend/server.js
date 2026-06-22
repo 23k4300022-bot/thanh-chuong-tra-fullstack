@@ -1233,6 +1233,31 @@ app.post("/api/create-vnpay-payment", async (req, res) => {
 
 /* ===================== VNPAY RETURN ===================== */
 
+async function releaseVnpayReservation(client, order) {
+  await client.query(
+    `UPDATE products p
+     SET stock = p.stock + reserved.quantity,
+         sold_count = GREATEST(0, p.sold_count - reserved.quantity)
+     FROM (
+       SELECT product_id, SUM(quantity)::int AS quantity
+       FROM order_items
+       WHERE order_id = $1
+       GROUP BY product_id
+     ) reserved
+     WHERE p.id = reserved.product_id`,
+    [order.id]
+  );
+
+  if (order.discount_code) {
+    await client.query(
+      `UPDATE discount_codes
+       SET used_count = GREATEST(0, used_count - 1), updated_at = NOW()
+       WHERE code = $1`,
+      [order.discount_code]
+    );
+  }
+}
+
 app.get("/api/vnpay-return", async (req, res) => {
   let vnp_Params = { ...req.query };
   const secureHash = vnp_Params.vnp_SecureHash;
@@ -1248,46 +1273,83 @@ app.get("/api/vnpay-return", async (req, res) => {
   const transactionNo = req.query.vnp_TransactionNo || "";
   const bankCode = req.query.vnp_BankCode || "";
 
+  if (secureHash !== signed || !Number.isInteger(orderId) || orderId <= 0) {
+    return res.redirect(`${process.env.CLIENT_URL}?payment=vnpay_error&order_id=${orderId || ""}`);
+  }
+
+  const client = await poolPromise.connect();
+  let shouldSendSuccessEmail = false;
+
   try {
-    if (secureHash === signed && responseCode === "00") {
-      await poolPromise.query(
-        `UPDATE orders SET payment_status = $1, transaction_code = $2, bank_code = $3 WHERE id = $4`,
-        ["Đã thanh toán VNPay Sandbox", transactionNo, bankCode, orderId]
-      );
-      const orderInfo = await poolPromise.query(`SELECT * FROM orders WHERE id = $1 LIMIT 1`, [orderId]);
-      const itemsInfo = await poolPromise.query(
-        `SELECT p.name, p.weight, oi.quantity, oi.price
-         FROM order_items oi JOIN products p ON oi.product_id = p.id
-         WHERE oi.order_id = $1`,
-        [orderId]
-      );
-      if (orderInfo.rows.length > 0) {
-        const order = orderInfo.rows[0];
-        sendOrderSuccessEmail({
-          order_id: order.id, customer_name: order.customer_name,
-          customer_email: order.customer_email, phone: order.phone,
-          address: order.address, note: order.note,
-          subtotal_amount: order.subtotal_amount, discount_code: order.discount_code,
-          discount_amount: order.discount_amount, total_amount: order.total_amount, payment_method: order.payment_method,
-          payment_status: "Đã thanh toán VNPay Sandbox", items: itemsInfo.rows,
-        }).catch((mailError) => {
-          console.error("Lỗi gửi email sau thanh toán VNPay:", mailError.message);
+    await client.query("BEGIN");
+    const orderResult = await client.query(
+      `SELECT * FROM orders WHERE id = $1 AND payment_method = 'VNPay Sandbox' FOR UPDATE`,
+      [orderId]
+    );
+    const order = orderResult.rows[0];
+
+    if (!order) {
+      await client.query("ROLLBACK");
+      return res.redirect(`${process.env.CLIENT_URL}?payment=vnpay_error&order_id=${orderId}`);
+    }
+
+    if (order.payment_status === "Chờ thanh toán VNPay") {
+      if (responseCode === "00") {
+        await client.query(
+          `UPDATE orders SET payment_status = $1, transaction_code = $2, bank_code = $3 WHERE id = $4`,
+          ["Đã thanh toán VNPay Sandbox", transactionNo, bankCode, orderId]
+        );
+        shouldSendSuccessEmail = true;
+      } else {
+        await releaseVnpayReservation(client, order);
+        await client.query(
+          `UPDATE orders SET payment_status = $1, transaction_code = $2, bank_code = $3 WHERE id = $4`,
+          ["Thanh toán VNPay thất bại hoặc bị hủy", transactionNo, bankCode, orderId]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+
+    const paymentSucceeded = shouldSendSuccessEmail ||
+      order.payment_status === "Đã thanh toán VNPay Sandbox";
+
+    if (paymentSucceeded) {
+      if (shouldSendSuccessEmail) {
+        const orderInfo = await poolPromise.query(`SELECT * FROM orders WHERE id = $1 LIMIT 1`, [orderId]);
+        const itemsInfo = await poolPromise.query(
+          `SELECT p.name, p.weight, oi.quantity, oi.price
+           FROM order_items oi JOIN products p ON oi.product_id = p.id
+           WHERE oi.order_id = $1`,
+          [orderId]
+        );
+        const paidOrder = orderInfo.rows[0];
+        if (paidOrder) {
+          sendOrderSuccessEmail({
+            order_id: paidOrder.id, customer_name: paidOrder.customer_name,
+            customer_email: paidOrder.customer_email, phone: paidOrder.phone,
+            address: paidOrder.address, note: paidOrder.note,
+            subtotal_amount: paidOrder.subtotal_amount, discount_code: paidOrder.discount_code,
+            discount_amount: paidOrder.discount_amount, total_amount: paidOrder.total_amount, payment_method: paidOrder.payment_method,
+            payment_status: "Đã thanh toán VNPay Sandbox", items: itemsInfo.rows,
+          }).catch((mailError) => {
+            console.error("Lỗi gửi email sau thanh toán VNPay:", mailError.message);
+          });
+        }
+        sendAftercareEmail(orderId).catch((mailError) => {
+          console.error("Lỗi gửi email hậu mãi sau VNPay:", mailError.message);
         });
       }
-      sendAftercareEmail(orderId).catch((mailError) => {
-        console.error("Lỗi gửi email hậu mãi sau VNPay:", mailError.message);
-      });
       return res.redirect(`${process.env.CLIENT_URL}?payment=vnpay_success&order_id=${orderId}`);
     }
 
-    await poolPromise.query(
-      `UPDATE orders SET payment_status = $1, transaction_code = $2, bank_code = $3 WHERE id = $4`,
-      ["Thanh toán VNPay thất bại hoặc bị hủy", transactionNo, bankCode, orderId]
-    );
     return res.redirect(`${process.env.CLIENT_URL}?payment=vnpay_failed&order_id=${orderId}`);
   } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
     console.error("Lỗi vnpay-return:", error);
     return res.redirect(`${process.env.CLIENT_URL}?payment=vnpay_error&order_id=${orderId}`);
+  } finally {
+    client.release();
   }
 });
 
