@@ -48,13 +48,16 @@ const formatDate = (value) => {
 };
 
 const normalize = (value) => String(value ?? "").trim().toLowerCase();
+const normalizePlain = (value) =>
+  normalize(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const isPaidStatus = value => {
   const status = normalize(value);
   return status.includes("đã thanh toán") || status.includes("đã giao cod và thu tiền");
 };
 const isCancelledStatus = value => {
   const status = normalize(value);
-  return status.includes("hủy") || status.includes("huy");
+  const plainStatus = normalizePlain(value);
+  return status.includes("hủy") || /(^|\s)huy(\s|$)/.test(plainStatus);
 };
 const isFailedStatus = value => normalize(value).includes("thất bại");
 const isDeliveredCodStatus = value => normalize(value).includes("đã giao cod và thu tiền");
