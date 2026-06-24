@@ -57,8 +57,9 @@ const isCancelledStatus = value => {
   return status.includes("hủy") || status.includes("huy");
 };
 const isFailedStatus = value => normalize(value).includes("thất bại");
+const isDeliveredCodStatus = value => normalize(value).includes("đã giao cod và thu tiền");
 const canCancelOrder = order =>
-  order && !isPaidStatus(order.payment_status) && !isCancelledStatus(order.payment_status) && !isFailedStatus(order.payment_status);
+  order && !isCancelledStatus(order.payment_status) && !isFailedStatus(order.payment_status) && !isDeliveredCodStatus(order.payment_status);
 
 // Tính giá sau giảm
 function calcSalePrice(price, discountPercent, discountAmount) {
@@ -865,7 +866,10 @@ function AdminPage() {
   };
 
   const cancelOrder = async order => {
-    if (!confirm(`Hủy đơn #${order.id} của ${order.customer_name}? Tồn kho và lượt dùng mã giảm giá sẽ được hoàn lại.`)) return;
+    const refundNote = isPaidStatus(order.payment_status)
+      ? "\n\nLưu ý: Đơn này đã thanh toán, cần hoàn tiền thủ công cho khách nếu shop chưa hoàn."
+      : "";
+    if (!confirm(`Hủy đơn #${order.id} của ${order.customer_name}? Tồn kho và lượt dùng mã giảm giá sẽ được hoàn lại.${refundNote}`)) return;
     setCancellingOrderId(order.id);
     try {
       const response = await fetch(`${API_URL}/api/admin/orders/${order.id}/cancel`, { method: "PUT" });

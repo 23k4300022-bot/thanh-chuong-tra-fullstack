@@ -1487,14 +1487,9 @@ app.put("/api/admin/orders/:id/cancel", async (req, res) => {
       return res.status(409).json({ message: "Không thể hủy đơn đã thất bại vì tồn kho đã được hoàn trước đó" });
     }
 
-    const paidStatuses = [
-      "Đã thanh toán VNPay Sandbox",
-      "Đã thanh toán chuyển khoản",
-      "Đã giao COD và thu tiền",
-    ];
-    if (paidStatuses.includes(order.payment_status)) {
+    if (order.payment_status === "Đã giao COD và thu tiền") {
       await client.query("ROLLBACK");
-      return res.status(409).json({ message: "Không thể hủy đơn đã thanh toán hoặc đã giao thu tiền" });
+      return res.status(409).json({ message: "Không thể hủy đơn COD đã giao và thu tiền" });
     }
 
     await releaseOrderReservation(client, order);
