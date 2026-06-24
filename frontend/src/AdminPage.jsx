@@ -294,7 +294,6 @@ function ProductEditModal({ product, onClose, onSaved }) {
     discount_percent: Number(product.discount_percent || 0),
     discount_amount:  Number(product.discount_amount  || 0),
     stock:            Number(product.stock     ?? 999),
-    sold_count:       Number(product.sold_count || 0),
     is_hot:           Boolean(product.is_hot),
   });
   const [saving, setSaving] = useState(false);
@@ -326,7 +325,6 @@ function ProductEditModal({ product, onClose, onSaved }) {
           discount_percent: Number(form.discount_percent),
           discount_amount:  Number(form.discount_amount),
           stock:            Number(form.stock),
-          sold_count:       Number(form.sold_count),
           is_hot:           Boolean(form.is_hot),
         }),
       });
@@ -368,6 +366,12 @@ function ProductEditModal({ product, onClose, onSaved }) {
           <div style={{ fontWeight: 700, color: "#174421" }}>{product.name}</div>
           <div style={{ fontSize: 13, color: "#666", marginTop: 4 }}>
             Giá gốc: <strong>{formatMoney(product.price)}</strong>
+            <span style={{ marginLeft: 10 }}>
+              Tồn kho: <strong>{Number(product.stock ?? 0)}</strong>
+            </span>
+            <span style={{ marginLeft: 10 }}>
+              Đã bán thực tế: <strong>{Number(product.sold_count || 0)}</strong>
+            </span>
             {hasDiscount && (
               <span style={{ marginLeft: 10, color: "#d32f2f", fontWeight: 700 }}>
                 → Giá bán: {formatMoney(salePrice)}
@@ -426,16 +430,11 @@ function ProductEditModal({ product, onClose, onSaved }) {
             <small style={{ color: "#888", fontSize: 11 }}>999 = không giới hạn tồn kho</small>
           </label>
 
-          <label style={labelStyle}>
-            <span>Đã bán (sold_count)</span>
-            <input
-              type="number" min="0"
-              value={form.sold_count}
-              onChange={(e) => setForm({ ...form, sold_count: Number(e.target.value) })}
-              style={inputStyle}
-            />
-            <small style={{ color: "#888", fontSize: 11 }}>Tự động tăng khi có đơn mới</small>
-          </label>
+          <div style={{ ...labelStyle, padding: "9px 12px", borderRadius: 8, border: "1px solid #dde8d8", background: "#f7fbf5" }}>
+            <span>Đã bán thực tế</span>
+            <strong style={{ color: "#1565c0", fontSize: 18 }}>{Number(product.sold_count || 0)}</strong>
+            <small style={{ color: "#888", fontSize: 11 }}>Tự tính từ các đơn đã thanh toán hoặc COD đã giao.</small>
+          </div>
         </div>
 
         <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 20, padding: "12px 16px", background: "#fff8e1", borderRadius: 10, border: "1px solid #ffe082" }}>
@@ -491,7 +490,7 @@ const emptyProductForm = {
   origin: "Việt Nam", flavor: "", image_url: "", tea_type: "Đồ ăn nhẹ",
   water_color: "Không áp dụng", brewing_guide: "Mở gói và dùng trực tiếp cùng trà. Dùng lượng vừa phải.",
   storage_guide: "Đậy kín sau khi mở, để nơi khô ráo và dùng theo hạn trên bao bì.",
-  discount_percent: 0, discount_amount: 0, stock: 20, sold_count: 0, is_hot: false,
+  discount_percent: 0, discount_amount: 0, stock: 20, is_hot: false,
 };
 
 function ProductCreateModal({ onClose, onSaved }) {

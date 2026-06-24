@@ -28,6 +28,29 @@ const isCancelledOrderStatus = value => {
   const plainStatus = normalizePlain(value);
   return status.includes("đã hủy đơn") || plainStatus.includes("da huy don");
 };
+const PAID_ORDER_STATUSES = [
+  "Đã thanh toán VNPay Sandbox",
+  "Đã thanh toán chuyển khoản",
+  "Đã giao COD và thu tiền",
+];
+
+async function getProductsWithActualSales(whereSql = "", params = []) {
+  const result = await poolPromise.query(
+    `SELECT p.*, COALESCE(s.actual_sold_count, 0)::int AS sold_count
+     FROM products p
+     LEFT JOIN (
+       SELECT oi.product_id, SUM(oi.quantity)::int AS actual_sold_count
+       FROM order_items oi
+       JOIN orders o ON o.id = oi.order_id
+       WHERE o.payment_status = ANY($1::text[])
+       GROUP BY oi.product_id
+     ) s ON s.product_id = p.id
+     ${whereSql}
+     ORDER BY p.id DESC`,
+    [PAID_ORDER_STATUSES, ...params]
+  );
+  return result.rows;
+}
 
 function createSlug(value) {
   return String(value || "")
@@ -612,8 +635,7 @@ app.get("/", (req, res) => {
 
 app.get("/api/products", async (req, res) => {
   try {
-    const result = await poolPromise.query(`SELECT * FROM products ORDER BY id DESC`);
-    res.json(result.rows);
+    res.json(await getProductsWithActualSales());
   } catch (error) {
     console.error("Lỗi lấy sản phẩm:", error);
     res.status(500).json({ message: "Lỗi lấy sản phẩm", error: error.message });
@@ -622,9 +644,9 @@ app.get("/api/products", async (req, res) => {
 
 app.get("/api/products/:id", async (req, res) => {
   try {
-    const result = await poolPromise.query(`SELECT * FROM products WHERE id = $1`, [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
-    res.json(result.rows[0]);
+    const rows = await getProductsWithActualSales("WHERE p.id = $2", [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
+    res.json(rows[0]);
   } catch (error) {
     console.error("Lỗi lấy chi tiết sản phẩm:", error);
     res.status(500).json({ message: "Lỗi chi tiết sản phẩm", error: error.message });
@@ -655,7 +677,8 @@ app.post("/api/products", async (req, res) => {
         Math.max(0, Number(stock || 0)), Math.max(0, Number(sold_count || 0)), Boolean(is_hot),
       ]
     );
-    res.status(201).json(result.rows[0]);
+    const rows = await getProductsWithActualSales("WHERE p.id = $2", [result.rows[0].id]);
+    res.status(201).json(rows[0] || result.rows[0]);
   } catch (error) {
     console.error("Lỗi tạo sản phẩm:", error);
     res.status(500).json({ message: "Không tạo được sản phẩm", error: error.message });
@@ -971,7 +994,8 @@ app.put("/api/products/:id", async (req, res) => {
     );
     if (result.rows.length === 0)
       return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
-    res.json(result.rows[0]);
+    const rows = await getProductsWithActualSales("WHERE p.id = $2", [result.rows[0].id]);
+    res.json(rows[0] || result.rows[0]);
   } catch (error) {
     console.error("Lỗi cập nhật sản phẩm:", error);
     res.status(500).json({ message: "Lỗi cập nhật sản phẩm", error: error.message });
