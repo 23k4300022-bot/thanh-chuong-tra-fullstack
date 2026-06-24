@@ -244,7 +244,7 @@ function OrderTrackingSection() {
         <div className="tracking-copy">
           <p className="eyebrow">Tra cứu vận đơn</p>
           <h2>Theo dõi đơn hàng của bạn</h2>
-          <p>Nhập mã đơn hàng và số điện thoại đặt hàng để xem trạng thái giao hàng J&T. Sau khi shop tạo vận đơn J&T, mã vận đơn và link theo dõi sẽ hiển thị tại đây.</p>
+          <p>Nhập mã đơn hàng và số điện thoại đặt hàng để xem trạng thái giao hàng GHN. Sau khi shop tạo vận đơn GHN, mã vận đơn và link theo dõi sẽ hiển thị tại đây.</p>
         </div>
         <form className="tracking-form" onSubmit={submit}>
           <label>
@@ -278,7 +278,7 @@ function OrderTrackingSection() {
           {result.tracking_url ? (
             <a className="tracking-link" href={result.tracking_url} target="_blank" rel="noopener noreferrer">Mở trang theo dõi của đơn vị vận chuyển</a>
           ) : (
-            <p className="tracking-note">Shop đã ghi nhận đơn hàng. Khi vận đơn J&T được tạo, thông tin mã vận đơn sẽ được cập nhật tại đây; hàng có thể vẫn đang chờ bàn giao cho xế.</p>
+            <p className="tracking-note">Shop đã ghi nhận đơn hàng. Khi vận đơn GHN được tạo, thông tin mã vận đơn sẽ được cập nhật tại đây; đơn có thể vẫn đang chờ GHN lấy hàng.</p>
           )}
         </div>
       )}

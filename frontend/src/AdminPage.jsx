@@ -601,20 +601,56 @@ function DiscountCodeModal({coupon,onClose,onSaved}){
 
 function ShippingEditModal({ order, onClose, onSaved }) {
   const [form, setForm] = useState({
-    shipping_carrier: order.shipping_carrier || "J&T Express",
+    shipping_carrier: order.shipping_carrier || "GHN",
     tracking_code: order.tracking_code || "",
     tracking_url: order.tracking_url || "",
-    shipping_status: order.shipping_status || "Đã tạo vận đơn J&T - chờ bàn giao cho xế",
+    shipping_status: order.shipping_status || "Đã tạo vận đơn GHN - chờ lấy hàng",
+  });
+  const [ghnForm, setGhnForm] = useState({
+    to_district_id: "",
+    to_ward_code: "",
+    weight: 500,
+    length: 20,
+    width: 15,
+    height: 8,
+    required_note: "CHOXEMHANGKHONGTHU",
   });
   const [saving, setSaving] = useState(false);
+  const [creatingGhn, setCreatingGhn] = useState(false);
   const [error, setError] = useState("");
 
-  const useJnt = () => {
+  const useGhn = () => {
     setForm(prev => ({
       ...prev,
-      shipping_carrier: "J&T Express",
-      shipping_status: "Đã tạo vận đơn J&T - chờ bàn giao cho xế",
+      shipping_carrier: "GHN",
+      shipping_status: "Đã tạo vận đơn GHN - chờ lấy hàng",
     }));
+  };
+
+  const createGhnOrder = async () => {
+    setCreatingGhn(true);
+    setError("");
+    try {
+      const response = await fetch(`${API_URL}/api/admin/orders/${order.id}/create-ghn`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(ghnForm),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Không tạo được vận đơn GHN");
+      onSaved(data);
+      setForm({
+        shipping_carrier: data.shipping_carrier || "GHN",
+        tracking_code: data.tracking_code || "",
+        tracking_url: data.tracking_url || "",
+        shipping_status: data.shipping_status || "Đã tạo vận đơn GHN - chờ lấy hàng",
+      });
+      alert(data.message || "Đã tạo vận đơn GHN");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCreatingGhn(false);
+    }
   };
 
   const submit = async event => {
@@ -646,23 +682,54 @@ function ShippingEditModal({ order, onClose, onSaved }) {
           <button type="button" onClick={onClose}>x</button>
         </div>
         <div className="admin-shipping-note">
-          Dùng J&T Express cho vận đơn thật. Bạn tạo đơn trên hệ thống J&T trước, dán mã vận đơn J&T vào đây; lúc này hàng có thể vẫn đang chờ bàn giao cho xế. Phần này chỉ lưu thông tin tra cứu, không gửi email mới.
+          Dùng GHN cho vận đơn thật. Nếu backend đã cấu hình GHN_TOKEN, GHN_SHOP_ID và địa chỉ lấy hàng, bạn có thể tạo vận đơn tự động ngay tại đây. Nếu chưa có mã khu vực GHN, vẫn có thể tạo đơn trên GHN rồi dán mã vận đơn vào phần bên dưới.
         </div>
-        <button className="admin-row-btn jnt-preset-btn" type="button" onClick={useJnt}>Dùng J&T Express</button>
+        <button className="admin-row-btn ghn-preset-btn" type="button" onClick={useGhn}>Dùng GHN</button>
+        <div className="admin-ghn-create">
+          <h3>Tạo vận đơn GHN tự động</h3>
+          <div className="admin-news-form-grid">
+            <label>GHN district_id người nhận
+              <input value={ghnForm.to_district_id} onChange={e => setGhnForm({ ...ghnForm, to_district_id: e.target.value.replace(/\D/g, "") })} placeholder="VD: 1442" />
+            </label>
+            <label>GHN ward_code người nhận
+              <input value={ghnForm.to_ward_code} onChange={e => setGhnForm({ ...ghnForm, to_ward_code: e.target.value.trim() })} placeholder="VD: 20109" />
+            </label>
+            <label>Cân nặng (gram)
+              <input type="number" min="1" value={ghnForm.weight} onChange={e => setGhnForm({ ...ghnForm, weight: Number(e.target.value) })} />
+            </label>
+            <label>Kích thước D x R x C (cm)
+              <div className="admin-size-row">
+                <input type="number" min="1" value={ghnForm.length} onChange={e => setGhnForm({ ...ghnForm, length: Number(e.target.value) })} />
+                <input type="number" min="1" value={ghnForm.width} onChange={e => setGhnForm({ ...ghnForm, width: Number(e.target.value) })} />
+                <input type="number" min="1" value={ghnForm.height} onChange={e => setGhnForm({ ...ghnForm, height: Number(e.target.value) })} />
+              </div>
+            </label>
+            <label className="wide">Ghi chú giao hàng GHN
+              <select value={ghnForm.required_note} onChange={e => setGhnForm({ ...ghnForm, required_note: e.target.value })}>
+                <option value="CHOXEMHANGKHONGTHU">Cho xem hàng, không cho thử</option>
+                <option value="CHOTHUHANG">Cho thử hàng</option>
+                <option value="KHONGCHOXEMHANG">Không cho xem hàng</option>
+              </select>
+            </label>
+          </div>
+          <button className="admin-row-btn ghn-create-btn" type="button" onClick={createGhnOrder} disabled={creatingGhn}>
+            {creatingGhn ? "Đang tạo vận đơn GHN..." : "Tạo vận đơn GHN tự động"}
+          </button>
+        </div>
         <div className="admin-news-form-grid">
           <label>Đơn vị vận chuyển
             <select value={form.shipping_carrier} onChange={e => setForm({ ...form, shipping_carrier: e.target.value })}>
-              <option value="J&T Express">J&T Express</option>
+              <option value="GHN">GHN</option>
             </select>
           </label>
           <label>Mã vận đơn
-            <input value={form.tracking_code} onChange={e => setForm({ ...form, tracking_code: e.target.value })} placeholder="Nhập mã J&T thật sau khi tạo vận đơn" />
+            <input value={form.tracking_code} onChange={e => setForm({ ...form, tracking_code: e.target.value })} placeholder="Nhập mã GHN thật sau khi tạo vận đơn" />
           </label>
           <label>Trạng thái giao hàng
             <select value={form.shipping_status} onChange={e => setForm({ ...form, shipping_status: e.target.value })}>
               <option>Chờ shop xử lý</option>
-              <option>Đã tạo vận đơn J&T - chờ bàn giao cho xế</option>
-              <option>Chờ J&T lấy hàng</option>
+              <option>Đã tạo vận đơn GHN - chờ lấy hàng</option>
+              <option>GHN đã lấy hàng</option>
               <option>Đã bàn giao vận chuyển</option>
               <option>Đang trung chuyển</option>
               <option>Đang giao hàng</option>

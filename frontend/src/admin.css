@@ -293,7 +293,13 @@
   margin-bottom: 14px; padding: 12px 14px; border: 1px solid #dcead6; border-radius: 12px;
   background: #f5faf3; color: #536055; font-size: 13px; line-height: 1.6;
 }
-.jnt-preset-btn { margin-bottom: 14px; background: #e8f5e9; color: #1f7a36; border-color: #c9e4c8; }
+.ghn-preset-btn { margin-bottom: 14px; background: #e8f5e9; color: #1f7a36; border-color: #c9e4c8; }
+.admin-ghn-create {
+  margin-bottom: 16px; padding: 14px; border: 1px solid #dcead6; border-radius: 14px; background: #fbfef9;
+}
+.admin-ghn-create h3 { margin: 0 0 12px; color: #174421; font-size: 15px; }
+.admin-size-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.ghn-create-btn { margin-top: 12px; width: 100%; background: #1f7a36; color: #fff; border-color: #1f7a36; }
 .shipping-editor { max-width: 720px; }
 .admin-error {
   margin-bottom: 14px; padding: 12px; border-radius: 12px;

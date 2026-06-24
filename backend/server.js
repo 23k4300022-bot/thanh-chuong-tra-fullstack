@@ -332,6 +332,16 @@ const MAIL_USER = process.env.MAIL_USER || "";
 const MAIL_PASS = process.env.MAIL_PASS || "";
 const SHOP_CONTACT_PHONE = "0395934551";
 const SHOP_CONTACT_EMAIL = "tranthixuan01012005@gmail.com";
+const GHN_API_URL = process.env.GHN_API_URL || "https://online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/create";
+const GHN_TOKEN = process.env.GHN_TOKEN || "";
+const GHN_SHOP_ID = process.env.GHN_SHOP_ID || "";
+const GHN_TRACKING_BASE_URL = process.env.GHN_TRACKING_BASE_URL || "https://donhang.ghn.vn";
+const GHN_FROM_NAME = process.env.GHN_FROM_NAME || EMAIL_FROM_NAME;
+const GHN_FROM_PHONE = process.env.GHN_FROM_PHONE || SHOP_CONTACT_PHONE;
+const GHN_FROM_ADDRESS = process.env.GHN_FROM_ADDRESS || "";
+const GHN_FROM_WARD_NAME = process.env.GHN_FROM_WARD_NAME || "";
+const GHN_FROM_DISTRICT_NAME = process.env.GHN_FROM_DISTRICT_NAME || "";
+const GHN_FROM_PROVINCE_NAME = process.env.GHN_FROM_PROVINCE_NAME || "";
 
 const smtpTransporter = HAS_SMTP_EMAIL
   ? nodemailer.createTransport({
@@ -352,6 +362,11 @@ function formatDateTime(date = new Date()) {
     hour12: false,
     timeZone: "Asia/Ho_Chi_Minh",
   });
+}
+
+function buildGhnTrackingUrl(orderCode) {
+  const baseUrl = String(GHN_TRACKING_BASE_URL || "https://donhang.ghn.vn").replace(/\/$/, "");
+  return `${baseUrl}/?order_code=${encodeURIComponent(orderCode)}`;
 }
 
 async function sendOrderSuccessEmail(orderInfo) {
@@ -1450,6 +1465,133 @@ app.get("/api/admin/orders", async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ message: "Lỗi lấy đơn hàng", error: error.message });
+  }
+});
+
+app.post("/api/admin/orders/:id/create-ghn", async (req, res) => {
+  try {
+    if (!GHN_TOKEN || !GHN_SHOP_ID) {
+      return res.status(400).json({ message: "Chưa cấu hình GHN_TOKEN và GHN_SHOP_ID trong backend environment." });
+    }
+    if (!GHN_FROM_ADDRESS || !GHN_FROM_WARD_NAME || !GHN_FROM_DISTRICT_NAME || !GHN_FROM_PROVINCE_NAME) {
+      return res.status(400).json({ message: "Chưa cấu hình địa chỉ lấy hàng GHN_FROM_ADDRESS, GHN_FROM_WARD_NAME, GHN_FROM_DISTRICT_NAME, GHN_FROM_PROVINCE_NAME." });
+    }
+
+    const orderId = Number(req.params.id);
+    if (!Number.isInteger(orderId) || orderId <= 0) {
+      return res.status(400).json({ message: "Mã đơn không hợp lệ" });
+    }
+
+    const toDistrictId = Number(req.body.to_district_id);
+    const toWardCode = String(req.body.to_ward_code || "").trim();
+    const weight = Math.max(1, Number(req.body.weight || 500));
+    const length = Math.max(1, Number(req.body.length || 20));
+    const width = Math.max(1, Number(req.body.width || 15));
+    const height = Math.max(1, Number(req.body.height || 8));
+    const requiredNote = String(req.body.required_note || "CHOXEMHANGKHONGTHU").trim();
+    const serviceTypeId = Number(req.body.service_type_id || 2);
+    const paymentTypeId = Number(req.body.payment_type_id || 2);
+
+    if (!Number.isInteger(toDistrictId) || toDistrictId <= 0 || !toWardCode) {
+      return res.status(400).json({ message: "Cần nhập to_district_id và to_ward_code của GHN cho địa chỉ nhận." });
+    }
+
+    const orderResult = await poolPromise.query(`SELECT * FROM orders WHERE id=$1 LIMIT 1`, [orderId]);
+    const order = orderResult.rows[0];
+    if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+
+    const itemsResult = await poolPromise.query(
+      `SELECT p.name, oi.quantity, oi.price
+       FROM order_items oi
+       JOIN products p ON p.id=oi.product_id
+       WHERE oi.order_id=$1`,
+      [orderId]
+    );
+    if (!itemsResult.rows.length) {
+      return res.status(400).json({ message: "Đơn hàng chưa có sản phẩm để tạo vận đơn GHN." });
+    }
+
+    const isCodOrder = String(order.payment_method || "").toUpperCase().includes("COD");
+    const ghnPayload = {
+      payment_type_id: paymentTypeId,
+      required_note: requiredNote,
+      service_type_id: serviceTypeId,
+      from_name: GHN_FROM_NAME,
+      from_phone: GHN_FROM_PHONE,
+      from_address: GHN_FROM_ADDRESS,
+      from_ward_name: GHN_FROM_WARD_NAME,
+      from_district_name: GHN_FROM_DISTRICT_NAME,
+      from_province_name: GHN_FROM_PROVINCE_NAME,
+      to_name: order.customer_name,
+      to_phone: order.phone,
+      to_address: order.address,
+      to_ward_code: toWardCode,
+      to_district_id: toDistrictId,
+      cod_amount: isCodOrder ? Math.round(Number(order.total_amount || 0)) : 0,
+      content: `Thanh Chuong Tra - don #${order.id}`,
+      weight,
+      length,
+      width,
+      height,
+      insurance_value: Math.round(Number(order.total_amount || 0)),
+      client_order_code: `TCT-${order.id}`,
+      items: itemsResult.rows.map(item => ({
+        name: String(item.name || "San pham tra").slice(0, 120),
+        quantity: Number(item.quantity || 1),
+        price: Math.round(Number(item.price || 0)),
+      })),
+    };
+
+    const ghnResponse = await fetch(GHN_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Token: GHN_TOKEN,
+        ShopId: String(GHN_SHOP_ID),
+      },
+      body: JSON.stringify(ghnPayload),
+    });
+    const responseText = await ghnResponse.text();
+    let ghnData = {};
+    try {
+      ghnData = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      ghnData = { raw: responseText };
+    }
+
+    if (!ghnResponse.ok || (ghnData.code && Number(ghnData.code) !== 200)) {
+      return res.status(502).json({
+        message: ghnData.message || "GHN không tạo được vận đơn. Vui lòng kiểm tra token, shop_id và mã phường/quận.",
+        ghn: ghnData,
+      });
+    }
+
+    const orderCode = ghnData.data?.order_code || ghnData.data?.orderCode || "";
+    if (!orderCode) {
+      return res.status(502).json({ message: "GHN đã phản hồi nhưng không có order_code.", ghn: ghnData });
+    }
+
+    const trackingUrl = buildGhnTrackingUrl(orderCode);
+    const updateResult = await poolPromise.query(
+      `UPDATE orders
+       SET shipping_carrier=$1,
+           tracking_code=$2,
+           tracking_url=$3,
+           shipping_status=$4,
+           shipping_updated_at=NOW()
+       WHERE id=$5
+       RETURNING *`,
+      ["GHN", orderCode, trackingUrl, "Đã tạo vận đơn GHN - chờ lấy hàng", orderId]
+    );
+
+    res.json({
+      ...updateResult.rows[0],
+      message: "Đã tạo vận đơn GHN và lưu mã theo dõi",
+      ghn: ghnData.data,
+    });
+  } catch (error) {
+    console.error("Lỗi tạo vận đơn GHN:", error.message);
+    res.status(500).json({ message: "Không tạo được vận đơn GHN", error: error.message });
   }
 });
 
