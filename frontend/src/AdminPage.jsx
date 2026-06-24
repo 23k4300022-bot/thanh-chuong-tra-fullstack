@@ -632,6 +632,7 @@ function AdminPage() {
   const [confirmingCodId, setConfirmingCodId] = useState(null);
   const [cancellingOrderId, setCancellingOrderId] = useState(null);
   const [cancelledOrderIds, setCancelledOrderIds] = useState(() => new Set());
+  const [cancellingOrderIds, setCancellingOrderIds] = useState(() => new Set());
 
   const fetchAdminData = async () => {
     setLoading(true);
@@ -875,9 +876,16 @@ function AdminPage() {
       : "";
     if (!confirm(`Hủy đơn #${order.id} của ${order.customer_name}? Tồn kho và lượt dùng mã giảm giá sẽ được hoàn lại.${refundNote}`)) return;
     setCancellingOrderId(order.id);
+    setCancellingOrderIds(current => new Set(current).add(order.id));
     try {
       const response = await fetch(`${API_URL}/api/admin/orders/${order.id}/cancel`, { method: "PUT" });
-      const data = await response.json();
+      const text = await response.text();
+      let data = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { message: text || "Backend không trả dữ liệu JSON hợp lệ" };
+      }
       if (!response.ok) throw new Error(data.message || "Không hủy được đơn hàng");
       setCancelledOrderIds(current => new Set(current).add(order.id));
       setOrders(current => current.map(item => item.id === order.id ? { ...item, ...data, payment_status: data.payment_status || "Đã hủy đơn hàng" } : item));
@@ -891,6 +899,11 @@ function AdminPage() {
       setLoyalCustomers(Array.isArray(customers) ? customers : []);
       alert(data.message);
     } catch (error) {
+      setCancellingOrderIds(current => {
+        const next = new Set(current);
+        next.delete(order.id);
+        return next;
+      });
       alert(error.message);
     } finally {
       setCancellingOrderId(null);
@@ -1104,10 +1117,10 @@ function AdminPage() {
                   </thead>
                   <tbody>
                     {filteredOrders.map((order) => {
-                      const orderStatus = cancelledOrderIds.has(order.id) ? "Đã hủy đơn hàng" : order.payment_status;
+                      const orderStatus = cancelledOrderIds.has(order.id) || cancellingOrderIds.has(order.id) ? "Đã hủy đơn hàng" : order.payment_status;
                       const displayOrder = { ...order, payment_status: orderStatus };
                       const showCodConfirm = displayOrder.payment_method === "COD" && displayOrder.payment_status === "Thanh toán khi nhận hàng";
-                      const showCancel = canCancelOrder(displayOrder) && !cancelledOrderIds.has(order.id);
+                      const showCancel = canCancelOrder(displayOrder) && !cancelledOrderIds.has(order.id) && !cancellingOrderIds.has(order.id);
 
                       return (
                         <tr key={order.id}>
