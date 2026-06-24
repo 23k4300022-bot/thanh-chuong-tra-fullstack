@@ -617,7 +617,28 @@ function ShippingEditModal({ order, onClose, onSaved }) {
   });
   const [saving, setSaving] = useState(false);
   const [creatingGhn, setCreatingGhn] = useState(false);
+  const [ghnLoading, setGhnLoading] = useState(false);
+  const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
+  const [selectedProvinceId, setSelectedProvinceId] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let ignore = false;
+    setGhnLoading(true);
+    fetchJson("/api/admin/ghn/provinces")
+      .then(data => {
+        if (!ignore) setProvinces(Array.isArray(data) ? data : []);
+      })
+      .catch(err => {
+        if (!ignore) setError(err.message);
+      })
+      .finally(() => {
+        if (!ignore) setGhnLoading(false);
+      });
+    return () => { ignore = true; };
+  }, []);
 
   const useGhn = () => {
     setForm(prev => ({
@@ -625,6 +646,40 @@ function ShippingEditModal({ order, onClose, onSaved }) {
       shipping_carrier: "GHN",
       shipping_status: "Đã tạo vận đơn GHN - chờ lấy hàng",
     }));
+  };
+
+  const selectProvince = async provinceId => {
+    setSelectedProvinceId(provinceId);
+    setDistricts([]);
+    setWards([]);
+    setGhnForm(prev => ({ ...prev, to_district_id: "", to_ward_code: "" }));
+    if (!provinceId) return;
+    setGhnLoading(true);
+    setError("");
+    try {
+      const data = await fetchJson(`/api/admin/ghn/districts?province_id=${encodeURIComponent(provinceId)}`);
+      setDistricts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGhnLoading(false);
+    }
+  };
+
+  const selectDistrict = async districtId => {
+    setGhnForm(prev => ({ ...prev, to_district_id: districtId, to_ward_code: "" }));
+    setWards([]);
+    if (!districtId) return;
+    setGhnLoading(true);
+    setError("");
+    try {
+      const data = await fetchJson(`/api/admin/ghn/wards?district_id=${encodeURIComponent(districtId)}`);
+      setWards(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGhnLoading(false);
+    }
   };
 
   const createGhnOrder = async () => {
@@ -688,11 +743,32 @@ function ShippingEditModal({ order, onClose, onSaved }) {
         <div className="admin-ghn-create">
           <h3>Tạo vận đơn GHN tự động</h3>
           <div className="admin-news-form-grid">
-            <label>GHN district_id người nhận
-              <input value={ghnForm.to_district_id} onChange={e => setGhnForm({ ...ghnForm, to_district_id: e.target.value.replace(/\D/g, "") })} placeholder="VD: 1442" />
+            <label>Tỉnh/thành người nhận
+              <select value={selectedProvinceId} onChange={e => selectProvince(e.target.value)} disabled={ghnLoading}>
+                <option value="">Chon tinh/thanh</option>
+                {provinces.map(province => (
+                  <option key={province.ProvinceID} value={province.ProvinceID}>{province.ProvinceName}</option>
+                ))}
+              </select>
             </label>
-            <label>GHN ward_code người nhận
-              <input value={ghnForm.to_ward_code} onChange={e => setGhnForm({ ...ghnForm, to_ward_code: e.target.value.trim() })} placeholder="VD: 20109" />
+            <label>Quận/huyện người nhận
+              <select value={ghnForm.to_district_id} onChange={e => selectDistrict(e.target.value)} disabled={!selectedProvinceId || ghnLoading}>
+                <option value="">Chon quan/huyen</option>
+                {districts.map(district => (
+                  <option key={district.DistrictID} value={district.DistrictID}>{district.DistrictName}</option>
+                ))}
+              </select>
+            </label>
+            <label>Phường/xã người nhận
+              <select value={ghnForm.to_ward_code} onChange={e => setGhnForm({ ...ghnForm, to_ward_code: e.target.value })} disabled={!ghnForm.to_district_id || ghnLoading}>
+                <option value="">Chon phuong/xa</option>
+                {wards.map(ward => (
+                  <option key={ward.WardCode} value={ward.WardCode}>{ward.WardName}</option>
+                ))}
+              </select>
+            </label>
+            <label>Mã GHN đã chọn
+              <input value={ghnForm.to_district_id && ghnForm.to_ward_code ? `${ghnForm.to_district_id} / ${ghnForm.to_ward_code}` : ""} readOnly placeholder="district_id / ward_code" />
             </label>
             <label>Cân nặng (gram)
               <input type="number" min="1" value={ghnForm.weight} onChange={e => setGhnForm({ ...ghnForm, weight: Number(e.target.value) })} />

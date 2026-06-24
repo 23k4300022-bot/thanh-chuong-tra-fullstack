@@ -369,6 +369,39 @@ function buildGhnTrackingUrl(orderCode) {
   return `${baseUrl}/?order_code=${encodeURIComponent(orderCode)}`;
 }
 
+async function fetchGhnMasterData(path, query = {}) {
+  if (!GHN_TOKEN) {
+    const error = new Error("Chưa cấu hình GHN_TOKEN trong backend environment.");
+    error.statusCode = 400;
+    throw error;
+  }
+  const url = new URL(`https://online-gateway.ghn.vn/shiip/public-api/master-data/${path}`);
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
+  });
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Token: GHN_TOKEN,
+      ...(GHN_SHOP_ID ? { ShopId: String(GHN_SHOP_ID) } : {}),
+    },
+  });
+  const text = await response.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+  if (!response.ok || (data.code && Number(data.code) !== 200)) {
+    const error = new Error(data.message || "Không lấy được dữ liệu địa chỉ GHN.");
+    error.statusCode = response.ok ? 502 : response.status;
+    error.ghn = data;
+    throw error;
+  }
+  return data.data || [];
+}
+
 async function sendOrderSuccessEmail(orderInfo) {
   if (!ENABLE_EMAIL) {
     console.log("Đã bỏ qua gửi email xác nhận vì ENABLE_EMAIL=false");
@@ -1465,6 +1498,41 @@ app.get("/api/admin/orders", async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ message: "Lỗi lấy đơn hàng", error: error.message });
+  }
+});
+
+app.get("/api/admin/ghn/provinces", async (req, res) => {
+  try {
+    const data = await fetchGhnMasterData("province");
+    res.json(data);
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message, ghn: error.ghn });
+  }
+});
+
+app.get("/api/admin/ghn/districts", async (req, res) => {
+  try {
+    const provinceId = Number(req.query.province_id);
+    if (!Number.isInteger(provinceId) || provinceId <= 0) {
+      return res.status(400).json({ message: "Thiếu province_id của GHN" });
+    }
+    const data = await fetchGhnMasterData("district", { province_id: provinceId });
+    res.json(data);
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message, ghn: error.ghn });
+  }
+});
+
+app.get("/api/admin/ghn/wards", async (req, res) => {
+  try {
+    const districtId = Number(req.query.district_id);
+    if (!Number.isInteger(districtId) || districtId <= 0) {
+      return res.status(400).json({ message: "Thiếu district_id của GHN" });
+    }
+    const data = await fetchGhnMasterData("ward", { district_id: districtId });
+    res.json(data);
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message, ghn: error.ghn });
   }
 });
 
