@@ -685,6 +685,7 @@ export default function CheckoutModal({
   cart, onClose, onInc, onDec, onRemove,
   customer, setCustomer,
   onSubmit, onVnpay, apiUrl,
+  accountEmail = "",
   companionProducts = [], onAddCompanion,
 }) {
   const [successType, setSuccessType] = useState(null);
@@ -701,6 +702,12 @@ export default function CheckoutModal({
   const subtotalAmount = cart.reduce((s,i)=>s+Number(i.price)*i.quantity, 0);
   const discountAmount = Number(appliedCoupon?.discount_amount || 0);
   const totalAmount = Math.max(0, subtotalAmount - discountAmount);
+  const normalizedAccountEmail = String(accountEmail || "").trim().toLowerCase();
+
+  useEffect(()=>{
+    if(!normalizedAccountEmail || customer.customer_email === normalizedAccountEmail) return;
+    setCustomer(prev=>({...prev, customer_email: normalizedAccountEmail}));
+  },[normalizedAccountEmail, customer.customer_email, setCustomer]);
 
   useEffect(()=>{
     if(appliedCoupon){
@@ -719,7 +726,7 @@ export default function CheckoutModal({
   const validate=()=>{
     const e={};
     if(!customer.customer_name?.trim()||customer.customer_name.trim().length<2) e.name="Vui lòng nhập họ tên";
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.customer_email)) e.email="Email không hợp lệ";
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedAccountEmail || customer.customer_email)) e.email="Email không hợp lệ";
     if(!/^0\d{9}$/.test(customer.phone)) e.phone="SĐT phải đúng 10 số, bắt đầu bằng 0";
     if(!customer.address?.trim()||customer.address.trim().length<10) e.address="Vui lòng nhập địa chỉ chi tiết (tối thiểu 10 ký tự)";
     setErrors(e);
@@ -768,7 +775,7 @@ export default function CheckoutModal({
     if(!code){setCouponMessage("Vui lòng nhập mã giảm giá.");return;}
     setCouponLoading(true); setCouponMessage("");
     try{
-      const res=await fetch(`${apiUrl}/api/discount-codes/validate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code,subtotal:subtotalAmount,customer_email:customer.customer_email})});
+      const res=await fetch(`${apiUrl}/api/discount-codes/validate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code,subtotal:subtotalAmount,customer_email:normalizedAccountEmail || customer.customer_email})});
       const data=await res.json();
       if(!res.ok)throw new Error(data.message||"Mã giảm giá không hợp lệ");
       setAppliedCoupon(data); setCouponInput(data.code); setCouponMessage("");
@@ -992,7 +999,8 @@ export default function CheckoutModal({
                   <div className="co-field">
                     <div className="co-label">Email <span className="req">*</span></div>
                     <input className={`co-inp${errors.email?" err":""}`} type="email" placeholder="email@gmail.com"
-                      value={customer.customer_email||""} onChange={e=>setField("customer_email",e.target.value)}/>
+                      value={normalizedAccountEmail || customer.customer_email || ""} readOnly={Boolean(normalizedAccountEmail)}
+                      onChange={e=>setField("customer_email",e.target.value)}/>
                     {errors.email&&<div className="co-err show">{errors.email}</div>}
                   </div>
 

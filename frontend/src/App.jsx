@@ -15,24 +15,46 @@ const SHOP_PHONE = "0395934551";
 const SHOP_EMAIL = "tranthixuan01012005@gmail.com";
 const normalizeCatalogText = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("vi");
 const isCompanionProduct = product => normalizeCatalogText(product?.category).includes("do an kem tra");
+const normalizeEmail = value => String(value || "").trim().toLowerCase();
+
+function getStoredUsers() {
+  try {
+    const users = JSON.parse(localStorage.getItem("thanh_chuong_users") || "[]");
+    const byEmail = new Map();
+    for (const user of Array.isArray(users) ? users : []) {
+      const email = normalizeEmail(user.email);
+      if (!email) continue;
+      byEmail.set(email, { ...user, email });
+    }
+    return [...byEmail.values()];
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredUsers(users) {
+  localStorage.setItem("thanh_chuong_users", JSON.stringify(users));
+}
 
 function getCheckoutProfile(email) {
-  if (!email) return null;
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
   try {
     const profiles = JSON.parse(localStorage.getItem(CHECKOUT_PROFILES_KEY) || "{}");
-    return profiles[email.trim().toLowerCase()] || null;
+    return profiles[normalizedEmail] || null;
   } catch {
     return null;
   }
 }
 
 function saveCheckoutProfile(accountEmail, customer) {
-  if (!accountEmail) return;
+  const normalizedEmail = normalizeEmail(accountEmail);
+  if (!normalizedEmail) return;
   try {
     const profiles = JSON.parse(localStorage.getItem(CHECKOUT_PROFILES_KEY) || "{}");
-    profiles[accountEmail.trim().toLowerCase()] = {
+    profiles[normalizedEmail] = {
       customer_name: customer.customer_name || "",
-      customer_email: customer.customer_email || accountEmail,
+      customer_email: normalizedEmail,
       phone: customer.phone || "",
       address: customer.address || "",
     };
@@ -295,7 +317,12 @@ function Storefront() {
       .then(data => setNews(Array.isArray(data) ? data : []))
       .catch(err => console.error("Lỗi lấy tin tức:", err));
     const savedUser = localStorage.getItem("thanh_chuong_user");
-    if (savedUser) setCurrentUser(JSON.parse(savedUser));
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+      const normalizedUser = { ...parsedUser, email: normalizeEmail(parsedUser.email) };
+      localStorage.setItem("thanh_chuong_user", JSON.stringify(normalizedUser));
+      setCurrentUser(normalizedUser);
+    }
   }, []);
 
   useEffect(() => {
@@ -423,12 +450,14 @@ function Storefront() {
 
   const handleRegister = e => {
     e.preventDefault();
-    if (!authForm.name || !authForm.email || !authForm.password) { alert("Vui lòng nhập đầy đủ thông tin đăng ký"); return; }
-    const users = JSON.parse(localStorage.getItem("thanh_chuong_users") || "[]");
-    if (users.find(u => u.email === authForm.email)) { alert("Email này đã được đăng ký"); return; }
-    const newUser = { id: Date.now(), name: authForm.name, email: authForm.email, password: authForm.password };
+    const email = normalizeEmail(authForm.email);
+    if (!authForm.name.trim() || !email || !authForm.password) { alert("Vui lòng nhập đầy đủ thông tin đăng ký"); return; }
+    const users = getStoredUsers();
+    saveStoredUsers(users);
+    if (users.find(u => normalizeEmail(u.email) === email)) { alert("Email này đã được đăng ký"); return; }
+    const newUser = { id: Date.now(), name: authForm.name.trim(), email, password: authForm.password };
     users.push(newUser);
-    localStorage.setItem("thanh_chuong_users", JSON.stringify(users));
+    saveStoredUsers(users);
     const loginUser = { id: newUser.id, name: newUser.name, email: newUser.email };
     localStorage.setItem("thanh_chuong_user", JSON.stringify(loginUser));
     setCurrentUser(loginUser); setShowAuth(false);
@@ -438,8 +467,10 @@ function Storefront() {
 
   const handleLogin = e => {
     e.preventDefault();
-    const users = JSON.parse(localStorage.getItem("thanh_chuong_users") || "[]");
-    const user = users.find(item => item.email === authForm.email && item.password === authForm.password);
+    const email = normalizeEmail(authForm.email);
+    const users = getStoredUsers();
+    saveStoredUsers(users);
+    const user = users.find(item => normalizeEmail(item.email) === email && item.password === authForm.password);
     if (!user) { alert("Email hoặc mật khẩu không đúng"); return; }
     const loginUser = { id: user.id, name: user.name, email: user.email };
     localStorage.setItem("thanh_chuong_user", JSON.stringify(loginUser));
@@ -508,10 +539,11 @@ function Storefront() {
   const openCheckout = () => {
     if (!currentUser) { setShowAuth(true); setAuthMode("login"); alert("Vui lòng đăng nhập trước khi thanh toán"); return; }
     const savedProfile = getCheckoutProfile(currentUser.email);
+    const accountEmail = normalizeEmail(currentUser.email);
     setCustomer(prev => ({
       ...prev,
       customer_name: prev.customer_name || savedProfile?.customer_name || currentUser.name || "",
-      customer_email: prev.customer_email || savedProfile?.customer_email || currentUser.email || "",
+      customer_email: accountEmail,
       phone: prev.phone || savedProfile?.phone || "",
       address: prev.address || savedProfile?.address || "",
     }));
@@ -533,11 +565,13 @@ function Storefront() {
     if (!customer.customer_name || !customer.customer_email || !customer.phone || !customer.address) {
       alert("Vui lòng nhập họ tên, email, số điện thoại và địa chỉ trước khi thanh toán"); return;
     }
+    const accountEmail = normalizeEmail(currentUser?.email);
+    const checkoutCustomer = { ...customer, customer_email: accountEmail };
     try {
       const res = await fetch(`${API_URL}/api/create-vnpay-payment`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customer: { ...customer, payment_method: "VNPay Sandbox", vnp_bank_code: "NCB", discount_code: discountCode },
+          customer: { ...checkoutCustomer, payment_method: "VNPay Sandbox", vnp_bank_code: "NCB", discount_code: discountCode },
           items: cart.map(item => ({
             product_id: item.id,
             name: item.name,
@@ -550,7 +584,7 @@ function Storefront() {
       });
       const data = await res.json();
       if (!res.ok) { alert(data.message || "Không tạo được URL thanh toán VNPay"); return; }
-      saveCheckoutProfile(currentUser?.email, customer);
+      saveCheckoutProfile(accountEmail, checkoutCustomer);
       window.location.href = data.url;
     } catch (error) { alert("Lỗi khi chuyển sang VNPay"); console.error(error); }
   };
@@ -561,8 +595,10 @@ function Storefront() {
     if (cart.length === 0) { alert("Giỏ hàng đang trống"); return; }
     if (!customer.customer_name || !customer.customer_email || !customer.phone || !customer.address) { alert("Vui lòng nhập đầy đủ thông tin"); return; }
     if (customer.payment_method === "VNPay Sandbox") { await payWithVnpay(); return; }
+    const accountEmail = normalizeEmail(currentUser.email);
+    const checkoutCustomer = { ...customer, customer_email: accountEmail };
     const orderData = {
-      ...customer,
+      ...checkoutCustomer,
       discount_code: discountCode,
       items: cart.map(item => ({
         product_id: item.id,
@@ -578,7 +614,7 @@ function Storefront() {
     });
     const data = await res.json();
     if (!res.ok) { alert(data.message || "Đặt hàng thất bại"); throw new Error("order failed"); }
-    saveCheckoutProfile(currentUser.email, customer);
+    saveCheckoutProfile(accountEmail, checkoutCustomer);
     return data;
   };
 
@@ -1442,6 +1478,7 @@ function Storefront() {
           onSubmit={submitOrder}
           onVnpay={payWithVnpay}
           apiUrl={API_URL}
+          accountEmail={currentUser?.email || ""}
           companionProducts={companionProducts}
           onAddCompanion={addToCart}
         />

@@ -20,6 +20,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const normalizeEmail = value => String(value || "").trim().toLowerCase();
+
 function createSlug(value) {
   return String(value || "")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -1054,6 +1056,7 @@ app.post("/api/orders", async (req, res) => {
     return res.status(400).json({ message: "Thiếu thông tin đặt hàng" });
   }
 
+  const normalizedCustomerEmail = normalizeEmail(customer_email);
   const pm = (payment_method || "").trim();
 
   let paymentStatus = "Chưa thanh toán";
@@ -1075,7 +1078,7 @@ app.post("/api/orders", async (req, res) => {
 
     const preparedItems = await reserveOrderStock(client, items);
     const subtotalAmount = preparedItems.reduce((sum,item)=>sum+item.price*item.quantity,0);
-    const discount = await calculateDiscount(client, discount_code, subtotalAmount, true, customer_email);
+    const discount = await calculateDiscount(client, discount_code, subtotalAmount, true, normalizedCustomerEmail);
     const totalAmount = discount.totalAmount;
 
     const orderResult = await client.query(
@@ -1083,7 +1086,7 @@ app.post("/api/orders", async (req, res) => {
        (customer_name, customer_email, phone, address, note, subtotal_amount, discount_code, discount_amount, total_amount, payment_method, payment_status, test_card_number)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING id`,
-      [customer_name, customer_email, phone, address, note || "",
+      [customer_name, normalizedCustomerEmail, phone, address, note || "",
        subtotalAmount, discount.code || null, discount.discountAmount, totalAmount, pm || "COD", paymentStatus, testCardNumber]
     );
 
@@ -1111,7 +1114,7 @@ app.post("/api/orders", async (req, res) => {
       [orderId]
     );
     sendOrderSuccessEmail({
-      order_id: orderId, customer_name, customer_email, phone, address, note,
+      order_id: orderId, customer_name, customer_email: normalizedCustomerEmail, phone, address, note,
       subtotal_amount: subtotalAmount, discount_code: discount.code,
       discount_amount: discount.discountAmount, total_amount: totalAmount, payment_method: pm || "COD",
       payment_status: paymentStatus, items: emailItemsResult.rows,
@@ -1158,6 +1161,7 @@ app.post("/api/create-vnpay-payment", async (req, res) => {
     return res.status(400).json({ message: "Giỏ hàng đang trống" });
   }
 
+  const normalizedCustomerEmail = normalizeEmail(customer.customer_email);
   const client = await poolPromise.connect();
 
   try {
@@ -1165,7 +1169,7 @@ app.post("/api/create-vnpay-payment", async (req, res) => {
 
     const preparedItems = await reserveOrderStock(client, items);
     const subtotalAmount = preparedItems.reduce((sum,item)=>sum+item.price*item.quantity,0);
-    const discount = await calculateDiscount(client, customer.discount_code, subtotalAmount, true, customer.customer_email);
+    const discount = await calculateDiscount(client, customer.discount_code, subtotalAmount, true, normalizedCustomerEmail);
     const totalAmount = discount.totalAmount;
 
     const orderResult = await client.query(
@@ -1173,7 +1177,7 @@ app.post("/api/create-vnpay-payment", async (req, res) => {
        (customer_name, customer_email, phone, address, note, subtotal_amount, discount_code, discount_amount, total_amount, payment_method, payment_status, test_card_number, transaction_code, bank_code)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, '', '', '')
        RETURNING id`,
-      [customer.customer_name, customer.customer_email, customer.phone, customer.address,
+      [customer.customer_name, normalizedCustomerEmail, customer.phone, customer.address,
        customer.note || "", subtotalAmount, discount.code || null, discount.discountAmount, totalAmount, "VNPay Sandbox", "Chờ thanh toán VNPay"]
     );
 
