@@ -1237,7 +1237,7 @@ app.post("/api/create-vnpay-payment", async (req, res) => {
 
 /* ===================== VNPAY RETURN ===================== */
 
-async function releaseVnpayReservation(client, order) {
+async function releaseOrderReservation(client, order) {
   await client.query(
     `UPDATE products p
      SET stock = p.stock + reserved.quantity,
@@ -1305,7 +1305,7 @@ app.get("/api/vnpay-return", async (req, res) => {
         );
         shouldSendSuccessEmail = true;
       } else {
-        await releaseVnpayReservation(client, order);
+        await releaseOrderReservation(client, order);
         await client.query(
           `UPDATE orders SET payment_status = $1, transaction_code = $2, bank_code = $3 WHERE id = $4`,
           ["Thanh toán VNPay thất bại hoặc bị hủy", transactionNo, bankCode, orderId]
@@ -1453,6 +1453,64 @@ app.put("/api/admin/orders/:id/confirm-cod", async (req, res) => {
   } catch (error) {
     console.error("Lỗi xác nhận COD:", error.message);
     res.status(500).json({ message: "Không xác nhận được đơn COD", error: error.message });
+  }
+});
+
+app.put("/api/admin/orders/:id/cancel", async (req, res) => {
+  const client = await poolPromise.connect();
+  try {
+    const orderId = Number(req.params.id);
+    if (!Number.isInteger(orderId) || orderId <= 0) {
+      return res.status(400).json({ message: "Mã đơn không hợp lệ" });
+    }
+
+    await client.query("BEGIN");
+    const orderResult = await client.query(
+      `SELECT * FROM orders WHERE id=$1 FOR UPDATE`,
+      [orderId]
+    );
+    const order = orderResult.rows[0];
+
+    if (!order) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    }
+
+    const status = String(order.payment_status || "").toLowerCase();
+    if (status.includes("hủy") || status.includes("huy")) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ message: "Đơn hàng đã được hủy trước đó" });
+    }
+
+    if (status.includes("thất bại") || status.includes("failed")) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ message: "Không thể hủy đơn đã thất bại vì tồn kho đã được hoàn trước đó" });
+    }
+
+    const paidStatuses = [
+      "Đã thanh toán VNPay Sandbox",
+      "Đã thanh toán chuyển khoản",
+      "Đã giao COD và thu tiền",
+    ];
+    if (paidStatuses.includes(order.payment_status)) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ message: "Không thể hủy đơn đã thanh toán hoặc đã giao thu tiền" });
+    }
+
+    await releaseOrderReservation(client, order);
+    const updateResult = await client.query(
+      `UPDATE orders SET payment_status=$1 WHERE id=$2 RETURNING *`,
+      ["Đã hủy đơn hàng", orderId]
+    );
+    await client.query("COMMIT");
+
+    res.json({ ...updateResult.rows[0], message: "Đã hủy đơn hàng và hoàn lại tồn kho" });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Lỗi hủy đơn hàng:", error.message);
+    res.status(500).json({ message: "Không hủy được đơn hàng", error: error.message });
+  } finally {
+    client.release();
   }
 });
 

@@ -52,6 +52,13 @@ const isPaidStatus = value => {
   const status = normalize(value);
   return status.includes("đã thanh toán") || status.includes("đã giao cod và thu tiền");
 };
+const isCancelledStatus = value => {
+  const status = normalize(value);
+  return status.includes("hủy") || status.includes("huy");
+};
+const isFailedStatus = value => normalize(value).includes("thất bại");
+const canCancelOrder = order =>
+  order && !isPaidStatus(order.payment_status) && !isCancelledStatus(order.payment_status) && !isFailedStatus(order.payment_status);
 
 // Tính giá sau giảm
 function calcSalePrice(price, discountPercent, discountAmount) {
@@ -262,7 +269,7 @@ function TopProducts({ orders, products }) {
 function getOrderStatusClass(status) {
   const normalized = normalize(status);
   if (isPaidStatus(normalized)) return "is-paid";
-  if (normalized.includes("thất bại") || normalized.includes("hủy")) return "is-failed";
+  if (normalized.includes("thất bại") || isCancelledStatus(normalized)) return "is-failed";
   if (normalized.includes("chờ")) return "is-pending";
   return "is-cod";
 }
@@ -619,6 +626,7 @@ function AdminPage() {
   const [showProductCreator, setShowProductCreator] = useState(false);
   const [productFilter, setProductFilter] = useState("all"); // all | hot | discount | low_stock
   const [confirmingCodId, setConfirmingCodId] = useState(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
 
   const fetchAdminData = async () => {
     setLoading(true);
@@ -675,6 +683,16 @@ function AdminPage() {
     [orders]
   );
 
+  const cancelledOrders = useMemo(
+    () => orders.filter((o) => isCancelledStatus(o.payment_status)),
+    [orders]
+  );
+
+  const failedOrders = useMemo(
+    () => orders.filter((o) => isFailedStatus(o.payment_status)),
+    [orders]
+  );
+
   const totalRevenue = useMemo(
     () => paidOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0),
     [paidOrders]
@@ -713,7 +731,8 @@ function AdminPage() {
       const matchesStatus =
         orderFilter === "all" ||
         (orderFilter === "paid" && isPaidStatus(status)) ||
-        (orderFilter === "unpaid" && !isPaidStatus(status)) ||
+        (orderFilter === "unpaid" && !isPaidStatus(status) && !isCancelledStatus(status) && !isFailedStatus(status)) ||
+        (orderFilter === "cancelled" && isCancelledStatus(status)) ||
         (orderFilter === "cod" && normalize(order.payment_method).includes("cod")) ||
         (orderFilter === "vnpay" && normalize(order.payment_method).includes("vnpay"));
       const matchesSearch =
@@ -845,6 +864,30 @@ function AdminPage() {
     }
   };
 
+  const cancelOrder = async order => {
+    if (!confirm(`Hủy đơn #${order.id} của ${order.customer_name}? Tồn kho và lượt dùng mã giảm giá sẽ được hoàn lại.`)) return;
+    setCancellingOrderId(order.id);
+    try {
+      const response = await fetch(`${API_URL}/api/admin/orders/${order.id}/cancel`, { method: "PUT" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Không hủy được đơn hàng");
+      setOrders(current => current.map(item => item.id === order.id ? { ...item, ...data } : item));
+      const [productsData, discountData, customers] = await Promise.all([
+        fetchJson("/api/products"),
+        fetchJson("/api/admin/discount-codes"),
+        fetchJson("/api/admin/loyal-customers"),
+      ]);
+      setProducts(Array.isArray(productsData) ? productsData : []);
+      setDiscountCodes(Array.isArray(discountData) ? discountData : []);
+      setLoyalCustomers(Array.isArray(customers) ? customers : []);
+      alert(data.message);
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
   if (!isLoggedIn) {
     return (
       <div className="admin-login-page">
@@ -949,7 +992,7 @@ function AdminPage() {
               <div className="stat-card is-warning">
                 <div className="stat-icon">⏳</div>
                 <span>Chưa thanh toán</span>
-                <strong>{orders.length - paidOrders.length}</strong>
+                <strong>{orders.length - paidOrders.length - cancelledOrders.length - failedOrders.length}</strong>
               </div>
               <div className="stat-card is-revenue">
                 <div className="stat-icon">💰</div>
@@ -1018,6 +1061,7 @@ function AdminPage() {
                   <option value="all">Tất cả trạng thái</option>
                   <option value="paid">Đã thanh toán</option>
                   <option value="unpaid">Chưa thanh toán</option>
+                  <option value="cancelled">Đã hủy</option>
                   <option value="cod">COD</option>
                   <option value="vnpay">VNPay</option>
                 </select>
@@ -1061,11 +1105,21 @@ function AdminPage() {
                         <td><span className={`admin-status ${getOrderStatusClass(order.payment_status)}`}>{order.payment_status}</span></td>
                         <td>{formatDate(order.created_at)}</td>
                         <td>
-                          {order.payment_method === "COD" && order.payment_status === "Thanh toán khi nhận hàng" ? (
-                            <button className="admin-row-btn" disabled={confirmingCodId === order.id} onClick={() => confirmCodDelivered(order)}>
-                              {confirmingCodId === order.id ? "Đang xác nhận..." : "Đã giao & thu tiền"}
-                            </button>
-                          ) : <span style={{color:"#98a096"}}>—</span>}
+                          <div className="admin-order-actions">
+                            {order.payment_method === "COD" && order.payment_status === "Thanh toán khi nhận hàng" && (
+                              <button className="admin-row-btn" disabled={confirmingCodId === order.id || cancellingOrderId === order.id} onClick={() => confirmCodDelivered(order)}>
+                                {confirmingCodId === order.id ? "Đang xác nhận..." : "Đã giao & thu tiền"}
+                              </button>
+                            )}
+                            {canCancelOrder(order) && (
+                              <button className="admin-row-btn danger" disabled={cancellingOrderId === order.id || confirmingCodId === order.id} onClick={() => cancelOrder(order)}>
+                                {cancellingOrderId === order.id ? "Đang hủy..." : "Hủy đơn"}
+                              </button>
+                            )}
+                            {!canCancelOrder(order) && !(order.payment_method === "COD" && order.payment_status === "Thanh toán khi nhận hàng") && (
+                              <span style={{color:"#98a096"}}>—</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
