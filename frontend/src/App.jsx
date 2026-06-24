@@ -297,6 +297,7 @@ function Storefront() {
   }, [showChatbot]);
 
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "" });
+  const [authError, setAuthError] = useState("");
   const [customer, setCustomer] = useState({
     customer_name: "", customer_email: "", phone: "", address: "",
     note: "", payment_method: "COD", bank_name: "", bank_account: "",
@@ -451,10 +452,11 @@ function Storefront() {
   const handleRegister = e => {
     e.preventDefault();
     const email = normalizeEmail(authForm.email);
-    if (!authForm.name.trim() || !email || !authForm.password) { alert("Vui lòng nhập đầy đủ thông tin đăng ký"); return; }
+    setAuthError("");
+    if (!authForm.name.trim() || !email || !authForm.password) { setAuthError("Vui lòng nhập đầy đủ thông tin đăng ký"); return; }
     const users = getStoredUsers();
     saveStoredUsers(users);
-    if (users.find(u => normalizeEmail(u.email) === email)) { alert("Email này đã được đăng ký"); return; }
+    if (users.find(u => normalizeEmail(u.email) === email)) { setAuthError("Email đã được sử dụng"); return; }
     const newUser = { id: Date.now(), name: authForm.name.trim(), email, password: authForm.password };
     users.push(newUser);
     saveStoredUsers(users);
@@ -462,11 +464,13 @@ function Storefront() {
     localStorage.setItem("thanh_chuong_user", JSON.stringify(loginUser));
     setCurrentUser(loginUser); setShowAuth(false);
     setAuthForm({ name: "", email: "", password: "" });
+    setAuthError("");
     alert("Đăng ký thành công!");
   };
 
   const handleLogin = e => {
     e.preventDefault();
+    setAuthError("");
     const email = normalizeEmail(authForm.email);
     const users = getStoredUsers();
     saveStoredUsers(users);
@@ -476,7 +480,21 @@ function Storefront() {
     localStorage.setItem("thanh_chuong_user", JSON.stringify(loginUser));
     setCurrentUser(loginUser); setShowAuth(false);
     setAuthForm({ name: "", email: "", password: "" });
+    setAuthError("");
     alert("Đăng nhập thành công!");
+  };
+
+  const handleAuthEmailChange = value => {
+    const email = normalizeEmail(value);
+    setAuthForm({ ...authForm, email: value });
+    if (authMode === "register" && email) {
+      const users = getStoredUsers();
+      if (users.find(u => normalizeEmail(u.email) === email)) {
+        setAuthError("Email đã được sử dụng");
+        return;
+      }
+    }
+    setAuthError("");
   };
 
   const logout = () => { localStorage.removeItem("thanh_chuong_user"); setCurrentUser(null); alert("Đã đăng xuất"); };
@@ -1380,20 +1398,21 @@ function Storefront() {
       {showAuth && (
         <div className="modal">
           <div className="auth-modal">
-            <button className="close" onClick={() => setShowAuth(false)}>×</button>
+            <button className="close" onClick={() => { setShowAuth(false); setAuthError(""); }}>×</button>
             <h2>{authMode === "login" ? "Đăng nhập" : "Đăng ký"}</h2>
             <form onSubmit={authMode === "login" ? handleLogin : handleRegister}>
               {authMode === "register" && (
-                <input type="text" placeholder="Họ và tên" value={authForm.name} onChange={e => setAuthForm({ ...authForm, name: e.target.value })} required />
+                <input type="text" placeholder="Họ và tên" value={authForm.name} onChange={e => { setAuthForm({ ...authForm, name: e.target.value }); setAuthError(""); }} required />
               )}
-              <input type="email" placeholder="Email" value={authForm.email} onChange={e => setAuthForm({ ...authForm, email: e.target.value })} required />
-              <input type="password" placeholder="Mật khẩu" value={authForm.password} onChange={e => setAuthForm({ ...authForm, password: e.target.value })} required />
+              <input className={authError ? "auth-input-error" : ""} type="email" placeholder="Email" value={authForm.email} onChange={e => handleAuthEmailChange(e.target.value)} required />
+              {authError && <div className="auth-error">{authError}</div>}
+              <input type="password" placeholder="Mật khẩu" value={authForm.password} onChange={e => { setAuthForm({ ...authForm, password: e.target.value }); if (authError !== "Email đã được sử dụng") setAuthError(""); }} required />
               <button>{authMode === "login" ? "Đăng nhập" : "Đăng ký"}</button>
             </form>
             {authMode === "login" ? (
-              <p>Chưa có tài khoản? <button className="text-button" onClick={() => setAuthMode("register")}>Đăng ký ngay</button></p>
+              <p>Chưa có tài khoản? <button className="text-button" onClick={() => { setAuthMode("register"); setAuthError(""); }}>Đăng ký ngay</button></p>
             ) : (
-              <p>Đã có tài khoản? <button className="text-button" onClick={() => setAuthMode("login")}>Đăng nhập</button></p>
+              <p>Đã có tài khoản? <button className="text-button" onClick={() => { setAuthMode("login"); setAuthError(""); }}>Đăng nhập</button></p>
             )}
           </div>
         </div>

@@ -1649,6 +1649,19 @@ p { text-wrap: pretty; }
   outline: none;
 }
 
+.auth-modal input.auth-input-error {
+  margin-bottom: 6px;
+  border-color: #d92d20;
+  background: #fff6f5;
+}
+
+.auth-error {
+  margin: 0 0 14px;
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .auth-modal button[type="submit"],
 .auth-modal form button {
   width: 100%;
