@@ -599,6 +599,92 @@ function DiscountCodeModal({coupon,onClose,onSaved}){
   </form></div>;
 }
 
+function ShippingEditModal({ order, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    shipping_carrier: order.shipping_carrier || "J&T Express",
+    tracking_code: order.tracking_code || "",
+    tracking_url: order.tracking_url || "",
+    shipping_status: order.shipping_status || "Đã tạo vận đơn J&T - chờ bàn giao cho xế",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const useJnt = () => {
+    setForm(prev => ({
+      ...prev,
+      shipping_carrier: "J&T Express",
+      shipping_status: "Đã tạo vận đơn J&T - chờ bàn giao cho xế",
+    }));
+  };
+
+  const submit = async event => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch(`${API_URL}/api/admin/orders/${order.id}/shipping`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Không cập nhật được vận đơn");
+      onSaved(data);
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="admin-news-modal" onClick={onClose}>
+      <form className="admin-news-editor shipping-editor" onClick={e => e.stopPropagation()} onSubmit={submit}>
+        <div className="admin-news-editor-head">
+          <h2>Cập nhật vận đơn #{order.id}</h2>
+          <button type="button" onClick={onClose}>x</button>
+        </div>
+        <div className="admin-shipping-note">
+          Dùng J&T Express cho vận đơn thật. Bạn tạo đơn trên hệ thống J&T trước, dán mã vận đơn J&T vào đây; lúc này hàng có thể vẫn đang chờ bàn giao cho xế. Phần này chỉ lưu thông tin tra cứu, không gửi email mới.
+        </div>
+        <button className="admin-row-btn jnt-preset-btn" type="button" onClick={useJnt}>Dùng J&T Express</button>
+        <div className="admin-news-form-grid">
+          <label>Đơn vị vận chuyển
+            <select value={form.shipping_carrier} onChange={e => setForm({ ...form, shipping_carrier: e.target.value })}>
+              <option value="J&T Express">J&T Express</option>
+            </select>
+          </label>
+          <label>Mã vận đơn
+            <input value={form.tracking_code} onChange={e => setForm({ ...form, tracking_code: e.target.value })} placeholder="Nhập mã J&T thật sau khi tạo vận đơn" />
+          </label>
+          <label>Trạng thái giao hàng
+            <select value={form.shipping_status} onChange={e => setForm({ ...form, shipping_status: e.target.value })}>
+              <option>Chờ shop xử lý</option>
+              <option>Đã tạo vận đơn J&T - chờ bàn giao cho xế</option>
+              <option>Chờ J&T lấy hàng</option>
+              <option>Đã bàn giao vận chuyển</option>
+              <option>Đang trung chuyển</option>
+              <option>Đang giao hàng</option>
+              <option>Giao hàng thành công</option>
+              <option>Giao không thành công</option>
+              <option>Đã hủy vận đơn</option>
+            </select>
+          </label>
+          <label>Link theo dõi
+            <input value={form.tracking_url} onChange={e => setForm({ ...form, tracking_url: e.target.value })} placeholder="https://..." />
+          </label>
+        </div>
+        {error && <div className="admin-error">{error}</div>}
+        <div className="admin-news-editor-actions">
+          <button type="button" onClick={onClose}>Hủy</button>
+          <button className="primary" type="submit" disabled={saving}>{saving ? "Đang lưu..." : "Lưu vận đơn"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 // ===================== TRANG CHÍNH =====================
 
 function AdminPage() {
@@ -631,6 +717,7 @@ function AdminPage() {
   const [productFilter, setProductFilter] = useState("all"); // all | hot | discount | low_stock
   const [confirmingCodId, setConfirmingCodId] = useState(null);
   const [cancellingOrderId, setCancellingOrderId] = useState(null);
+  const [editingShippingOrder, setEditingShippingOrder] = useState(null);
   const [cancelledOrderIds, setCancelledOrderIds] = useState(() => new Set());
   const [cancellingOrderIds, setCancellingOrderIds] = useState(() => new Set());
 
@@ -743,7 +830,7 @@ function AdminPage() {
         (orderFilter === "vnpay" && normalize(order.payment_method).includes("vnpay"));
       const matchesSearch =
         !search ||
-        [order.id, order.customer_name, order.customer_email, order.phone, order.address, order.payment_method, order.payment_status]
+        [order.id, order.customer_name, order.customer_email, order.phone, order.address, order.payment_method, order.payment_status, order.shipping_carrier, order.tracking_code, order.shipping_status]
           .some((v) => normalize(v).includes(search));
       return matchesStatus && matchesSearch;
     });
@@ -850,6 +937,10 @@ function AdminPage() {
     const res=await fetch(`${API_URL}/api/admin/news-comments/${comment.id}`,{method:"DELETE"});
     if(res.ok)setNewsComments(prev=>prev.filter(c=>c.id!==comment.id));
     else alert("Không xóa được bình luận");
+  };
+
+  const handleShippingSaved = updatedOrder => {
+    setOrders(current => current.map(item => item.id === updatedOrder.id ? { ...item, ...updatedOrder } : item));
   };
 
   const confirmCodDelivered = async order => {
@@ -1125,7 +1216,7 @@ function AdminPage() {
                     <tr>
                       <th>Mã đơn</th><th>Khách hàng</th><th>Điện thoại</th>
                       <th>Địa chỉ</th><th>Tổng tiền</th><th>Thanh toán</th>
-                      <th>Trạng thái</th><th>Ngày đặt</th><th>Hành động</th>
+                      <th>Trạng thái</th><th>Vận đơn</th><th>Ngày đặt</th><th>Hành động</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1144,9 +1235,19 @@ function AdminPage() {
                           <td><strong>{formatMoney(order.total_amount)}</strong></td>
                           <td>{order.payment_method}</td>
                           <td><span className={`admin-status ${getOrderStatusClass(orderStatus)}`}>{orderStatus}</span></td>
+                          <td>
+                            <div className="admin-shipping-cell">
+                              <strong>{order.shipping_status || "Chờ shop xử lý"}</strong>
+                              <small>{order.shipping_carrier || "Chưa có đơn vị vận chuyển"}</small>
+                              <small>{order.tracking_code || "Chưa có mã vận đơn"}</small>
+                            </div>
+                          </td>
                           <td>{formatDate(order.created_at)}</td>
                           <td>
                             <div className="admin-order-actions">
+                              <button className="admin-row-btn" type="button" onClick={() => setEditingShippingOrder(order)}>
+                                Vận đơn
+                              </button>
                               {showCodConfirm && (
                                 <button className="admin-row-btn" disabled={confirmingCodId === order.id || cancellingOrderId === order.id} onClick={() => confirmCodDelivered(order)}>
                                   {confirmingCodId === order.id ? "Đang xác nhận..." : "Đã giao & thu tiền"}
@@ -1425,6 +1526,13 @@ function AdminPage() {
           coupon={editingDiscount}
           onClose={()=>setShowDiscountEditor(false)}
           onSaved={saved=>setDiscountCodes(prev=>editingDiscount?prev.map(c=>c.id===saved.id?saved:c):[saved,...prev])}
+        />
+      )}
+      {editingShippingOrder && (
+        <ShippingEditModal
+          order={editingShippingOrder}
+          onClose={() => setEditingShippingOrder(null)}
+          onSaved={handleShippingSaved}
         />
       )}
     </div>

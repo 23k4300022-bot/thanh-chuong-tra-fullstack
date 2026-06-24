@@ -211,6 +211,81 @@ function PolicyModal({ type, onClose }) {
   );
 }
 
+function OrderTrackingSection() {
+  const [form, setForm] = useState({ order_id: "", phone: "" });
+  const [result, setResult] = useState(null);
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async event => {
+    event.preventDefault();
+    setLoading(true);
+    setMessage("");
+    setResult(null);
+    try {
+      const response = await fetch(`${API_URL}/api/orders/track`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Không tìm thấy đơn hàng");
+      setResult(data);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section className="tracking-section" id="tracking">
+      <div className="tracking-panel">
+        <div className="tracking-copy">
+          <p className="eyebrow">Tra cứu vận đơn</p>
+          <h2>Theo dõi đơn hàng của bạn</h2>
+          <p>Nhập mã đơn hàng và số điện thoại đặt hàng để xem trạng thái giao hàng J&T. Sau khi shop tạo vận đơn J&T, mã vận đơn và link theo dõi sẽ hiển thị tại đây.</p>
+        </div>
+        <form className="tracking-form" onSubmit={submit}>
+          <label>
+            <span>Mã đơn hàng</span>
+            <input inputMode="numeric" placeholder="VD: 123" value={form.order_id} onChange={e => setForm({ ...form, order_id: e.target.value.replace(/\D/g, "") })} required />
+          </label>
+          <label>
+            <span>Số điện thoại</span>
+            <input inputMode="numeric" maxLength={10} placeholder="0xxx xxx xxx" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value.replace(/\D/g, "") })} required />
+          </label>
+          <button type="submit" disabled={loading}>{loading ? "Đang tra cứu..." : "Tra cứu đơn hàng"}</button>
+        </form>
+      </div>
+
+      {message && <div className="tracking-message error">{message}</div>}
+      {result && (
+        <div className="tracking-result">
+          <div className="tracking-result-head">
+            <div>
+              <span>Đơn hàng #{result.order_id}</span>
+              <strong>{result.shipping_status || "Chờ shop xử lý"}</strong>
+            </div>
+            <b>{Number(result.total_amount || 0).toLocaleString("vi-VN")}đ</b>
+          </div>
+          <div className="tracking-grid">
+            <div><span>Khách hàng</span><strong>{result.customer_name}</strong></div>
+            <div><span>Thanh toán</span><strong>{result.payment_status}</strong></div>
+            <div><span>Đơn vị vận chuyển</span><strong>{result.shipping_carrier || "Chưa cập nhật"}</strong></div>
+            <div><span>Mã vận đơn</span><strong>{result.tracking_code || "Chưa có mã vận đơn"}</strong></div>
+          </div>
+          {result.tracking_url ? (
+            <a className="tracking-link" href={result.tracking_url} target="_blank" rel="noopener noreferrer">Mở trang theo dõi của đơn vị vận chuyển</a>
+          ) : (
+            <p className="tracking-note">Shop đã ghi nhận đơn hàng. Khi vận đơn J&T được tạo, thông tin mã vận đơn sẽ được cập nhật tại đây; hàng có thể vẫn đang chờ bàn giao cho xế.</p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Storefront() {
   const [products, setProducts] = useState([]);
   const [news, setNews] = useState([]);
@@ -702,6 +777,7 @@ function Storefront() {
     { href: "#about", label: "Giới thiệu" },
     { href: "#products", label: "Sản phẩm" },
     { href: "#gift", label: "Hộp quà" },
+    { href: "#tracking", label: "Tra cứu đơn" },
     { href: "#news", label: "Tin tức", children: newsSubLinks },
     { href: "#guide", label: "Cách pha trà" },
     { href: "#contact", label: "Liên hệ" },
@@ -1262,6 +1338,8 @@ function Storefront() {
     ))}
   </div>
 </section>
+        <OrderTrackingSection />
+
         <section className="contact-section" id="contact">
           <div className="contact-info-panel">
             <p className="eyebrow green">Kết nối với chúng tôi</p>
@@ -1318,7 +1396,7 @@ function Storefront() {
           <div className="footer-column">
             <h4 style={{ color: "#fff", marginBottom: 16, fontSize: 14, textTransform: "uppercase", letterSpacing: 1 }}>Liên kết nhanh</h4>
             <div className="footer-links" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[{ label: "Trang chủ", href: "#home" }, { label: "Sản phẩm", href: "#products" }, { label: "Hộp quà", href: "#gift" }, { label: "Cách pha trà", href: "#guide" }, { label: "Liên hệ", href: "#contact" }].map(link => (
+              {[{ label: "Trang chủ", href: "#home" }, { label: "Sản phẩm", href: "#products" }, { label: "Hộp quà", href: "#gift" }, { label: "Tra cứu đơn", href: "#tracking" }, { label: "Cách pha trà", href: "#guide" }, { label: "Liên hệ", href: "#contact" }].map(link => (
                 <a key={link.label} href={link.href} style={{ color: "#a5d6a7", textDecoration: "none", fontSize: 14, opacity: 0.85 }}>{link.label}</a>
               ))}
             </div>

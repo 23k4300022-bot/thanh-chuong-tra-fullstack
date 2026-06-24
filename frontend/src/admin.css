@@ -287,6 +287,14 @@
 .admin-status.is-cod     { background: #e8f1ff; color: #245b9f; }
 .admin-order-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; min-width: 106px; }
 .admin-order-actions .admin-row-btn { width: 100%; text-align: center; }
+.admin-shipping-cell { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }
+.admin-shipping-cell strong { color: #174421; font-size: 12px; }
+.admin-shipping-note {
+  margin-bottom: 14px; padding: 12px 14px; border: 1px solid #dcead6; border-radius: 12px;
+  background: #f5faf3; color: #536055; font-size: 13px; line-height: 1.6;
+}
+.jnt-preset-btn { margin-bottom: 14px; background: #e8f5e9; color: #1f7a36; border-color: #c9e4c8; }
+.shipping-editor { max-width: 720px; }
 .admin-error {
   margin-bottom: 14px; padding: 12px; border-radius: 12px;
   background: #fff0f0; color: #a31919; line-height: 1.55;

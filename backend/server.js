@@ -148,6 +148,15 @@ async function ensureAftercareTables() {
   `);
 }
 
+async function ensureShippingTrackingColumns() {
+  await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_carrier VARCHAR(80)`);
+  await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_code VARCHAR(120)`);
+  await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_url TEXT`);
+  await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_status VARCHAR(120) NOT NULL DEFAULT 'Chờ shop xử lý'`);
+  await poolPromise.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_updated_at TIMESTAMPTZ`);
+  await poolPromise.query(`CREATE INDEX IF NOT EXISTS orders_tracking_lookup_idx ON orders(id, phone)`);
+}
+
 async function ensureCompanionProducts() {
   const companionProducts = [
     {
@@ -1444,6 +1453,85 @@ app.get("/api/admin/orders", async (req, res) => {
   }
 });
 
+app.put("/api/admin/orders/:id/shipping", async (req, res) => {
+  try {
+    const orderId = Number(req.params.id);
+    if (!Number.isInteger(orderId) || orderId <= 0) {
+      return res.status(400).json({ message: "Mã đơn không hợp lệ" });
+    }
+
+    const carrier = String(req.body.shipping_carrier || "").trim().slice(0, 80);
+    const trackingCode = String(req.body.tracking_code || "").trim().slice(0, 120);
+    const trackingUrl = String(req.body.tracking_url || "").trim().slice(0, 500);
+    const shippingStatus = String(req.body.shipping_status || "Chờ shop xử lý").trim().slice(0, 120);
+
+    if (trackingUrl && !/^https?:\/\/\S+$/i.test(trackingUrl)) {
+      return res.status(400).json({ message: "Link theo dõi phải bắt đầu bằng http:// hoặc https://" });
+    }
+
+    const result = await poolPromise.query(
+      `UPDATE orders
+       SET shipping_carrier=$1,
+           tracking_code=$2,
+           tracking_url=$3,
+           shipping_status=$4,
+           shipping_updated_at=NOW()
+       WHERE id=$5
+       RETURNING *`,
+      [carrier || null, trackingCode || null, trackingUrl || null, shippingStatus || "Chờ shop xử lý", orderId]
+    );
+
+    if (!result.rows.length) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    res.json({ ...result.rows[0], message: "Đã cập nhật thông tin vận đơn" });
+  } catch (error) {
+    console.error("Lỗi cập nhật vận đơn:", error.message);
+    res.status(500).json({ message: "Không cập nhật được vận đơn", error: error.message });
+  }
+});
+
+app.post("/api/orders/track", async (req, res) => {
+  try {
+    const orderId = Number(req.body.order_id);
+    const phone = String(req.body.phone || "").replace(/\D/g, "");
+    if (!Number.isInteger(orderId) || orderId <= 0 || phone.length < 9) {
+      return res.status(400).json({ message: "Vui lòng nhập mã đơn và số điện thoại hợp lệ" });
+    }
+
+    const result = await poolPromise.query(
+      `SELECT id, customer_name, phone, address, total_amount, payment_method, payment_status,
+              shipping_carrier, tracking_code, tracking_url, shipping_status, shipping_updated_at, created_at
+       FROM orders
+       WHERE id=$1 AND regexp_replace(phone, '\\D', '', 'g') LIKE $2
+       LIMIT 1`,
+      [orderId, `%${phone.slice(-9)}`]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ message: "Không tìm thấy đơn hàng khớp với thông tin đã nhập" });
+    }
+
+    const order = result.rows[0];
+    res.json({
+      order_id: order.id,
+      customer_name: order.customer_name,
+      phone: order.phone,
+      address: order.address,
+      total_amount: order.total_amount,
+      payment_method: order.payment_method,
+      payment_status: order.payment_status,
+      shipping_carrier: order.shipping_carrier || "",
+      tracking_code: order.tracking_code || "",
+      tracking_url: order.tracking_url || "",
+      shipping_status: order.shipping_status || "Chờ shop xử lý",
+      shipping_updated_at: order.shipping_updated_at,
+      created_at: order.created_at,
+    });
+  } catch (error) {
+    console.error("Lỗi tra cứu vận đơn:", error.message);
+    res.status(500).json({ message: "Không tra cứu được đơn hàng", error: error.message });
+  }
+});
+
 app.get("/api/admin/contacts", async (req, res) => {
   try {
     const result = await poolPromise.query(`SELECT * FROM contacts ORDER BY created_at DESC`);
@@ -1745,7 +1833,7 @@ app.post("/api/order-feedback/:token", async (req, res) => {
 /* ===================== START SERVER ===================== */
 
 const PORT = process.env.PORT || 5000;
-Promise.all([ensureNewsTable(), ensureDiscountTables(), ensureAftercareTables(), ensureCompanionProducts()])
+Promise.all([ensureNewsTable(), ensureDiscountTables(), ensureAftercareTables(), ensureShippingTrackingColumns(), ensureCompanionProducts()])
   .then(() => app.listen(PORT, () => console.log(`Server đang chạy tại http://localhost:${PORT}`)))
   .catch((error) => {
     console.error("Không thể khởi tạo bảng tin tức:", error);
