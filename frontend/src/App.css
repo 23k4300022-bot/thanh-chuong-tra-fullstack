@@ -1992,7 +1992,7 @@ p { text-wrap: pretty; }
 }
 .tracking-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 420px;
+  grid-template-columns: minmax(260px, .85fr) minmax(0, 1.15fr);
   gap: 24px;
   align-items: stretch;
   padding: 28px;
@@ -2003,7 +2003,13 @@ p { text-wrap: pretty; }
 }
 .tracking-copy h2 { margin: 8px 0 12px; color: #174421; font-size: 34px; line-height: 1.15; }
 .tracking-copy p:last-child { margin: 0; color: #5e6b5e; line-height: 1.75; }
-.tracking-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
+.tracking-form {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
 .tracking-form label { display: flex; flex-direction: column; gap: 6px; color: #344034; font-size: 12px; font-weight: 800; }
 .tracking-form input {
   min-width: 0; height: 44px; padding: 0 13px; border: 1px solid #d4e1ce; border-radius: 11px;
@@ -2016,6 +2022,7 @@ p { text-wrap: pretty; }
   border: 0; border-radius: 11px; background: #1f7a36; color: #fff; font-weight: 900; text-decoration: none;
   cursor: pointer; white-space: nowrap;
 }
+.tracking-form button { width: 100%; grid-column: 1 / -1; }
 .tracking-form button:disabled { opacity: .65; cursor: wait; }
 .tracking-message,
 .tracking-result { margin-top: 14px; padding: 18px; border-radius: 18px; background: #fff; border: 1px solid #dce8d5; }
@@ -2053,8 +2060,6 @@ p { text-wrap: pretty; }
   .product-grid, .guide-grid, .news-grid { grid-template-columns: repeat(2, 1fr); }
   .gift-section, .about-card, .contact-section, .detail-grid { grid-template-columns: 1fr; }
   .tracking-panel { grid-template-columns: 1fr; }
-  .tracking-form { grid-template-columns: 1fr 1fr; }
-  .tracking-form button { grid-column: 1 / -1; }
   .tracking-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .contact-section { margin:50px 20px; padding:12px; }
   .gift-card { grid-template-columns: 180px 1fr; }
