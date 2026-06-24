@@ -23,6 +23,11 @@ app.use(express.json());
 const normalizeEmail = value => String(value || "").trim().toLowerCase();
 const normalizePlain = value =>
   String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const isCancelledOrderStatus = value => {
+  const status = String(value || "").trim().toLowerCase();
+  const plainStatus = normalizePlain(value);
+  return status.includes("đã hủy đơn") || plainStatus.includes("da huy don");
+};
 
 function createSlug(value) {
   return String(value || "")
@@ -1479,8 +1484,7 @@ app.put("/api/admin/orders/:id/cancel", async (req, res) => {
     }
 
     const status = String(order.payment_status || "").toLowerCase();
-    const plainStatus = normalizePlain(order.payment_status);
-    if (status.includes("hủy") || /(^|\s)huy(\s|$)/.test(plainStatus)) {
+    if (isCancelledOrderStatus(order.payment_status)) {
       await client.query("ROLLBACK");
       return res.status(409).json({ message: "Đơn hàng đã được hủy trước đó" });
     }

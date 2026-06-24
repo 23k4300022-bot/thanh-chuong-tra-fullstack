@@ -50,6 +50,7 @@ const formatDate = (value) => {
 const normalize = (value) => String(value ?? "").trim().toLowerCase();
 const normalizePlain = (value) =>
   normalize(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const CANCELLED_ORDER_STATUS = "Đã hủy đơn hàng";
 const isPaidStatus = value => {
   const status = normalize(value);
   return status.includes("đã thanh toán") || status.includes("đã giao cod và thu tiền");
@@ -57,7 +58,7 @@ const isPaidStatus = value => {
 const isCancelledStatus = value => {
   const status = normalize(value);
   const plainStatus = normalizePlain(value);
-  return status.includes("hủy") || /(^|\s)huy(\s|$)/.test(plainStatus);
+  return status.includes("đã hủy đơn") || plainStatus.includes("da huy don");
 };
 const isFailedStatus = value => normalize(value).includes("thất bại");
 const isDeliveredCodStatus = value => normalize(value).includes("đã giao cod và thu tiền");
@@ -876,7 +877,11 @@ function AdminPage() {
       : "";
     if (!confirm(`Hủy đơn #${order.id} của ${order.customer_name}? Tồn kho và lượt dùng mã giảm giá sẽ được hoàn lại.${refundNote}`)) return;
     setCancellingOrderId(order.id);
-    setCancellingOrderIds(current => new Set(current).add(order.id));
+    setCancellingOrderIds(current => {
+      const next = new Set(current);
+      next.add(order.id);
+      return next;
+    });
     try {
       const response = await fetch(`${API_URL}/api/admin/orders/${order.id}/cancel`, { method: "PUT" });
       const text = await response.text();
@@ -887,8 +892,12 @@ function AdminPage() {
         data = { message: text || "Backend không trả dữ liệu JSON hợp lệ" };
       }
       if (!response.ok) throw new Error(data.message || "Không hủy được đơn hàng");
-      setCancelledOrderIds(current => new Set(current).add(order.id));
-      setOrders(current => current.map(item => item.id === order.id ? { ...item, ...data, payment_status: data.payment_status || "Đã hủy đơn hàng" } : item));
+      setCancelledOrderIds(current => {
+        const next = new Set(current);
+        next.add(order.id);
+        return next;
+      });
+      setOrders(current => current.map(item => item.id === order.id ? { ...item, ...data, payment_status: data.payment_status || CANCELLED_ORDER_STATUS } : item));
       const [productsData, discountData, customers] = await Promise.all([
         fetchJson("/api/products"),
         fetchJson("/api/admin/discount-codes"),
@@ -907,6 +916,11 @@ function AdminPage() {
       alert(error.message);
     } finally {
       setCancellingOrderId(null);
+      setCancellingOrderIds(current => {
+        const next = new Set(current);
+        next.delete(order.id);
+        return next;
+      });
     }
   };
 
@@ -1117,10 +1131,10 @@ function AdminPage() {
                   </thead>
                   <tbody>
                     {filteredOrders.map((order) => {
-                      const orderStatus = cancelledOrderIds.has(order.id) || cancellingOrderIds.has(order.id) ? "Đã hủy đơn hàng" : order.payment_status;
+                      const orderStatus = cancelledOrderIds.has(order.id) ? CANCELLED_ORDER_STATUS : order.payment_status;
                       const displayOrder = { ...order, payment_status: orderStatus };
                       const showCodConfirm = displayOrder.payment_method === "COD" && displayOrder.payment_status === "Thanh toán khi nhận hàng";
-                      const showCancel = canCancelOrder(displayOrder) && !cancelledOrderIds.has(order.id) && !cancellingOrderIds.has(order.id);
+                      const showCancel = canCancelOrder(displayOrder) && !cancelledOrderIds.has(order.id);
 
                       return (
                         <tr key={order.id}>
